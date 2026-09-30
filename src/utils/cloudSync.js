@@ -481,21 +481,33 @@ ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public read on products" ON public.products;
+DROP POLICY IF EXISTS "Allow all on products" ON public.products;
 CREATE POLICY "Allow public read on products" ON public.products FOR SELECT USING (true);
 CREATE POLICY "Allow all on products" ON public.products FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read on categories" ON public.categories;
+DROP POLICY IF EXISTS "Allow all on categories" ON public.categories;
 CREATE POLICY "Allow public read on categories" ON public.categories FOR SELECT USING (true);
 CREATE POLICY "Allow all on categories" ON public.categories FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read on settings" ON public.settings;
+DROP POLICY IF EXISTS "Allow all on settings" ON public.settings;
 CREATE POLICY "Allow public read on settings" ON public.settings FOR SELECT USING (true);
 CREATE POLICY "Allow all on settings" ON public.settings FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read on coupons" ON public.coupons;
+DROP POLICY IF EXISTS "Allow all on coupons" ON public.coupons;
 CREATE POLICY "Allow public read on coupons" ON public.coupons FOR SELECT USING (true);
 CREATE POLICY "Allow all on coupons" ON public.coupons FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read on reviews" ON public.reviews;
+DROP POLICY IF EXISTS "Allow all on reviews" ON public.reviews;
 CREATE POLICY "Allow public read on reviews" ON public.reviews FOR SELECT USING (true);
 CREATE POLICY "Allow all on reviews" ON public.reviews FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read on orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow all on orders" ON public.orders;
 CREATE POLICY "Allow public read on orders" ON public.orders FOR SELECT USING (true);
 CREATE POLICY "Allow all on orders" ON public.orders FOR ALL USING (true) WITH CHECK (true);
 `;
