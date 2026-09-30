@@ -100,24 +100,29 @@ export const ProductCard = ({
         )}
 
         {/* Quick Size Pills overlay on Hover (Zara style) */}
-        <div className="absolute inset-x-3 bottom-8 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20 bg-white/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-gold-300/60 hidden sm:flex flex-col items-center gap-1.5">
+        <div className="absolute inset-x-2 bottom-8 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20 bg-white/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-gold-300/60 hidden sm:flex flex-col items-center gap-1.5 max-w-[95%] mx-auto">
           <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
             Quick Add Size:
           </span>
-          <div className="flex gap-1.5 flex-wrap justify-center">
-            {(product.sizes || ['S', 'M', 'L', 'XL']).map((sz) => (
-              <button
-                key={sz}
-                type="button"
-                onClick={(e) => {
-                  setSelectedSize(sz);
-                  handleAdd(e, sz);
-                }}
-                className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-900 hover:text-white text-stone-800 text-xs font-bold transition-all shadow-xs flex items-center justify-center cursor-pointer"
-              >
-                {sz}
-              </button>
-            ))}
+          <div className="flex gap-1.5 flex-wrap justify-center max-w-full">
+            {(product.sizes || ['S', 'M', 'L', 'XL']).map((sz) => {
+              const str = String(sz).trim();
+              const label = /free\s*size/i.test(str) ? 'Free Size' : (/unstitched/i.test(str) ? 'Unstitched' : (str.length > 6 ? str.split(/[\(\,\-]/)[0].trim() : str));
+              return (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={(e) => {
+                    setSelectedSize(sz);
+                    handleAdd(e, sz);
+                  }}
+                  className="min-w-[30px] h-7 px-2 rounded-lg bg-stone-100 hover:bg-stone-900 hover:text-white text-stone-800 text-[11px] font-bold transition-all shadow-xs flex items-center justify-center cursor-pointer shrink-0 whitespace-nowrap"
+                  title={sz}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
 

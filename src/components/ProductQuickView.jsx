@@ -69,9 +69,10 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/90 text-stone-700 hover:bg-stone-900 hover:text-white shadow-md flex items-center justify-center transition-all cursor-pointer"
+          aria-label="Close details"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-900/90 hover:bg-[#700b1d] text-white shadow-xl flex items-center justify-center transition-all cursor-pointer border border-white/20"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 max-h-[92vh] overflow-y-auto">
@@ -126,19 +127,20 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
 
           {/* Right Column: Details & Ordering */}
           <div className="p-4 sm:p-6 md:p-8 flex flex-col justify-between space-y-4">
-            <div>
-              <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-                <span className="uppercase tracking-widest font-extrabold text-[#700b1d]">
+            <div className="pr-8 sm:pr-12 md:pr-10">
+              <div className="flex items-center gap-2 flex-wrap text-xs text-stone-500 mb-1.5">
+                <span className="uppercase tracking-widest font-extrabold text-[#700b1d] text-[11px] sm:text-xs">
                   {product.category}
                 </span>
-                <div className="flex items-center gap-1 text-amber-500 font-semibold">
-                  <Star size={14} fill="currentColor" />
-                  <span>{product.rating || 4.9}</span>
-                  <span className="text-stone-400">({product.reviewsCount || 42} reviews)</span>
+                <span className="text-stone-300">•</span>
+                <div className="flex items-center gap-1 text-amber-500 font-semibold text-xs">
+                  <Star size={13} fill="currentColor" />
+                  <span className="text-stone-800 font-bold">{product.rating || 4.9}</span>
+                  <span className="text-stone-500">({product.reviewsCount || 42} reviews)</span>
                 </div>
               </div>
 
-              <h2 className="font-heading text-lg sm:text-2xl font-bold text-stone-900">
+              <h2 className="font-heading text-lg sm:text-2xl font-bold text-stone-900 leading-tight">
                 {product.name}
               </h2>
 
@@ -179,7 +181,7 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
                     <button
                       key={sz}
                       onClick={() => setSelectedSize(sz)}
-                      className={`min-w-10 h-10 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center cursor-pointer ${
+                      className={`min-w-10 h-10 px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center cursor-pointer whitespace-nowrap ${
                         selectedSize === sz
                           ? 'royal-maroon-bg text-gold-100 shadow-md scale-105'
                           : 'bg-stone-100 text-stone-700 hover:bg-stone-200'

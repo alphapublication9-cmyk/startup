@@ -318,16 +318,16 @@ export const Navbar = ({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onOpenCart}
-              className="relative flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#700b1d] via-[#540614] to-[#38020a] hover:from-[#850e24] hover:to-[#4a040e] text-gold-100 border border-gold-400/40 rounded-full transition-all shadow-md shadow-rose-950/20 group cursor-pointer"
+              className="relative flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#700b1d] via-[#540614] to-[#38020a] hover:from-[#850e24] hover:to-[#4a040e] text-gold-100 border border-gold-400/40 rounded-full transition-all shadow-md shadow-rose-950/20 group cursor-pointer"
               aria-label="View Shopping Cart"
             >
-              <ShoppingBag size={17} className="text-gold-300 group-hover:scale-110 transition-transform" />
+              <ShoppingBag size={17} className="text-gold-300 group-hover:scale-110 transition-transform shrink-0" />
               <span className="hidden sm:inline font-bold text-xs tracking-wide">Cart</span>
               <motion.span 
                 key={cartCount}
                 initial={{ scale: 0.6 }}
                 animate={{ scale: 1 }}
-                className="w-4.5 h-4.5 bg-gradient-to-br from-amber-300 to-amber-500 text-stone-950 text-[10px] font-black rounded-full flex items-center justify-center shadow-xs"
+                className="min-w-[20px] h-5 px-1.5 bg-gradient-to-br from-amber-300 to-amber-400 text-stone-950 text-[11px] font-black rounded-full flex items-center justify-center shadow-xs shrink-0 leading-none"
               >
                 {cartCount}
               </motion.span>
