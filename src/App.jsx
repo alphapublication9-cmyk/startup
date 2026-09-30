@@ -69,11 +69,17 @@ export function App() {
   const [wishlist, setWishlist] = useState(getStoredWishlist);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(getAdminAuthStatus);
 
+  // Check if current URL is the secret admin route (/admin420 or /#admin420 or ?admin420)
+  const checkIsAdminRoute = () => {
+    const hash = (window.location.hash || '').toLowerCase();
+    const path = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    return hash.includes('admin420') || path.includes('admin420') || search.includes('admin420');
+  };
+
   // View Navigation: 'store' | 'admin'
   const [currentView, setCurrentView] = useState(() => {
-    const isHashAdmin = window.location.hash.toLowerCase().includes('admin');
-    const isQueryAdmin = window.location.search.toLowerCase().includes('admin');
-    return (isHashAdmin || isQueryAdmin) ? 'admin' : 'store';
+    return checkIsAdminRoute() ? 'admin' : 'store';
   });
 
   // Grid layout view: 'grid-4' | 'grid-2' (Zara lookbook style)
@@ -102,20 +108,22 @@ export function App() {
 
   const catalogRef = useRef(null);
 
-  // URL Hash Listener for Page Routing
+  // URL Hash & Route Listener for Secret Admin Portal (/admin420 or /#admin420)
   useEffect(() => {
-    const handleHashChange = () => {
-      const isHashAdmin = window.location.hash.toLowerCase().includes('admin');
-      const isQueryAdmin = window.location.search.toLowerCase().includes('admin');
-      if (isHashAdmin || isQueryAdmin) {
+    const handleRouteChange = () => {
+      if (checkIsAdminRoute()) {
         setCurrentView('admin');
       } else {
         setCurrentView('store');
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, []);
 
   // Initial Cloud Data Fetching & Sync
@@ -256,12 +264,15 @@ export function App() {
   };
 
   const handleOpenAdminPage = () => {
-    window.location.hash = '#admin';
+    window.location.hash = '#admin420';
     setCurrentView('admin');
   };
 
   const handleBackToStore = () => {
     window.location.hash = '';
+    if (window.location.pathname.toLowerCase().includes('admin420')) {
+      window.history.pushState(null, '', '/');
+    }
     setCurrentView('store');
   };
 

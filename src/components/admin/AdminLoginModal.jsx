@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, KeyRound, X, AlertCircle, ShieldCheck, Eye, EyeOff, Sparkles, Zap } from 'lucide-react';
+import { Lock, User, KeyRound, X, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 export const AdminLoginModal = ({ isOpen, onClose, onLoginSuccess, settings = {} }) => {
   if (!isOpen) return null;
@@ -13,7 +13,7 @@ export const AdminLoginModal = ({ isOpen, onClose, onLoginSuccess, settings = {}
         if (parsed.username) return parsed.username;
       }
     } catch {}
-    return settings.adminUser || 'PAWAN420';
+    return '';
   });
 
   const [password, setPassword] = useState(() => {
@@ -24,7 +24,7 @@ export const AdminLoginModal = ({ isOpen, onClose, onLoginSuccess, settings = {}
         if (parsed.password) return parsed.password;
       }
     } catch {}
-    return settings.adminPass || 'TERABAAP420';
+    return '';
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -32,8 +32,8 @@ export const AdminLoginModal = ({ isOpen, onClose, onLoginSuccess, settings = {}
 
   const handleLogin = (e) => {
     if (e) e.preventDefault();
-    const correctUser = settings.adminUser || 'PAWAN420';
-    const correctPass = settings.adminPass || 'TERABAAP420';
+    const correctUser = settings.adminUser || 'admin420';
+    const correctPass = settings.adminPass || 'Radhika@420';
 
     if (username.trim() === correctUser && password.trim() === correctPass) {
       setError('');
@@ -51,23 +51,6 @@ export const AdminLoginModal = ({ isOpen, onClose, onLoginSuccess, settings = {}
     } else {
       setError('Invalid Admin ID or Password. Please check credentials.');
     }
-  };
-
-  const handleQuickLogin = () => {
-    const correctUser = settings.adminUser || 'PAWAN420';
-    const correctPass = settings.adminPass || 'TERABAAP420';
-    setUsername(correctUser);
-    setPassword(correctPass);
-    setError('');
-    try {
-      localStorage.setItem('aura_admin_saved_creds', JSON.stringify({
-        username: correctUser,
-        password: correctPass,
-        remember: true
-      }));
-    } catch (err) {}
-    onLoginSuccess();
-    onClose();
   };
 
   return (
@@ -180,29 +163,6 @@ export const AdminLoginModal = ({ isOpen, onClose, onLoginSuccess, settings = {}
             <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
               Auto-Save
             </span>
-          </div>
-
-          {/* Quick Helper Credentials Note & 1-Click Login */}
-          <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200/90 text-xs text-stone-600 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-amber-950 text-[11px] uppercase tracking-wider flex items-center gap-1">
-                <Sparkles size={12} className="text-amber-700" />
-                <span>Configured Credentials:</span>
-              </span>
-              <button
-                type="button"
-                onClick={handleQuickLogin}
-                className="text-[11px] font-bold text-amber-950 hover:text-white hover:bg-[#700b1d] bg-amber-200/90 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-xs"
-              >
-                <Zap size={12} className="text-amber-800" />
-                <span>⚡ 1-Click Login</span>
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between mt-1 text-stone-800 font-mono bg-white/80 p-2 rounded-lg border border-amber-200/70 text-xs font-semibold">
-              <span>ID: <strong>{settings.adminUser || 'PAWAN420'}</strong></span>
-              <span>PASS: <strong>{settings.adminPass || 'TERABAAP420'}</strong></span>
-            </div>
           </div>
 
           {/* Submit */}

@@ -108,7 +108,7 @@ export const AdminPage = ({
         if (parsed.username) return parsed.username;
       }
     } catch {}
-    return settings.adminUser || 'PAWAN420';
+    return '';
   });
 
   const [password, setPassword] = useState(() => {
@@ -119,7 +119,7 @@ export const AdminPage = ({
         if (parsed.password) return parsed.password;
       }
     } catch {}
-    return settings.adminPass || 'TERABAAP420';
+    return '';
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -333,8 +333,8 @@ export const AdminPage = ({
   // Handle Admin Login Form with Remember Me Save
   const handleLogin = (e) => {
     if (e) e.preventDefault();
-    const correctUser = settings.adminUser || 'PAWAN420';
-    const correctPass = settings.adminPass || 'TERABAAP420';
+    const correctUser = settings.adminUser || 'admin420';
+    const correctPass = settings.adminPass || 'Radhika@420';
 
     if (username.trim() === correctUser && password.trim() === correctPass) {
       setLoginError('');
@@ -357,23 +357,6 @@ export const AdminPage = ({
     } else {
       setLoginError('Invalid Admin ID or Password. Please enter correct credentials.');
     }
-  };
-
-  // 1-Click Quick Auto Login
-  const handleQuickAutoLogin = () => {
-    const correctUser = settings.adminUser || 'PAWAN420';
-    const correctPass = settings.adminPass || 'TERABAAP420';
-    setUsername(correctUser);
-    setPassword(correctPass);
-    setLoginError('');
-    try {
-      localStorage.setItem('aura_admin_saved_creds', JSON.stringify({
-        username: correctUser,
-        password: correctPass,
-        remember: true
-      }));
-    } catch (err) {}
-    onLoginSuccess();
   };
 
   // Open Add/Edit Product Modal
@@ -839,30 +822,6 @@ export const AdminPage = ({
                 <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                   Auto-Save
                 </span>
-              </div>
-
-              {/* Configured Admin Credentials Helper Box with 1-Click Auto Fill & Login */}
-              <div className="p-3.5 bg-gradient-to-br from-amber-50 to-amber-100/60 rounded-2xl border border-amber-200 text-xs text-stone-700 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-950 text-[11px] uppercase tracking-wider flex items-center gap-1">
-                    <Sparkles size={12} className="text-amber-700" />
-                    <span>Configured Credentials:</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleQuickAutoLogin}
-                    className="text-[11px] font-bold text-amber-950 hover:text-white hover:bg-[#700b1d] bg-amber-200/90 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-xs"
-                    title="Fill credentials and login immediately"
-                  >
-                    <Zap size={12} className="text-amber-800 hover:text-amber-300" />
-                    <span>⚡ 1-Click Auto Login</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between font-mono text-xs font-semibold bg-white/90 p-2.5 rounded-xl border border-amber-200/70">
-                  <span>ID: <strong className="text-stone-900">{settings.adminUser || 'PAWAN420'}</strong></span>
-                  <span>PASS: <strong className="text-stone-900">{settings.adminPass || 'TERABAAP420'}</strong></span>
-                </div>
               </div>
 
               {/* Login Button */}

@@ -12,8 +12,8 @@ export const INITIAL_SETTINGS = {
   currency: "₹",
   announcementText: "✨ FESTIVE SALE: Extra 10% OFF on Prepaid Orders | Pan-India Express Dispatch ✨",
   supportEmail: "info@radhikakurticollection.com",
-  adminUser: "PAWAN420",
-  adminPass: "TERABAAP420",
+  adminUser: "admin420",
+  adminPass: "Radhika@420",
   invoicePrefix: "RKC/2026/",
   invoiceTerms: "1. 7-Day Hassle-Free Size Exchange on intact tags.\n2. Dry Clean recommended for all silk, zari, and embroidered apparel.\n3. All disputes subject to Jaipur, Rajasthan jurisdiction."
 };
