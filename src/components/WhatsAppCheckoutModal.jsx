@@ -31,9 +31,36 @@ export const WhatsAppCheckoutModal = ({
   const [selectedChannel, setSelectedChannel] = useState(defaultChannel);
 
   const subtotal = checkoutPricing?.subtotal ?? cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const discountAmount = checkoutPricing?.discountAmount ?? (appliedPromo ? Math.round(subtotal * 0.10) : 0);
-  const timerDiscount = checkoutPricing?.timerDiscount ?? 0;
-  const couponDiscount = checkoutPricing?.couponDiscount ?? (discountAmount - timerDiscount);
+  
+  // Calculate timer discount (from props or live timer deadline)
+  let timerDiscount = 0;
+  if (checkoutPricing && typeof checkoutPricing.timerDiscount === 'number') {
+    timerDiscount = checkoutPricing.timerDiscount;
+  } else if (settings.timerDiscountEnabled !== false && cartItems.length > 0) {
+    try {
+      const storedDeadline = localStorage.getItem('aura_kurti_cart_timer_deadline');
+      const isExpired = storedDeadline ? (parseInt(storedDeadline, 10) - Date.now() <= 0) : false;
+      if (!isExpired) {
+        const tType = settings.timerDiscountType || 'percentage';
+        const tVal = Number(settings.timerDiscountValue ?? 10);
+        if (tType === 'percentage') {
+          timerDiscount = Math.round((subtotal * tVal) / 100);
+        } else {
+          timerDiscount = Math.min(subtotal, tVal);
+        }
+      }
+    } catch {}
+  }
+
+  // Calculate coupon discount
+  let couponDiscount = 0;
+  if (checkoutPricing && typeof checkoutPricing.couponDiscount === 'number') {
+    couponDiscount = checkoutPricing.couponDiscount;
+  } else if (appliedPromo) {
+    couponDiscount = Math.round(subtotal * 0.10);
+  }
+
+  const discountAmount = checkoutPricing?.discountAmount ?? (timerDiscount + couponDiscount);
   const grandTotal = checkoutPricing?.grandTotal ?? Math.max(0, subtotal - discountAmount);
 
   const isTelegramActive = settings.orderChannel === 'telegram' || (settings.orderChannel === 'both' && selectedChannel === 'telegram');
