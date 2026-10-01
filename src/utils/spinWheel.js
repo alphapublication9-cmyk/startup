@@ -145,7 +145,7 @@ export const fetchCloudSpinWheelConfig = async () => {
       .from('settings')
       .select('*')
       .eq('id', 'spin_wheel_config')
-      .single();
+      .maybeSingle();
 
     if (!error && data && data.data) {
       const cloudConfig = data.data;

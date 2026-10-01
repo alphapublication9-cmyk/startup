@@ -4,7 +4,7 @@
  * Fabric, Category, Color, and Features from Amazon/Flipkart URLs or pasted content.
  */
 
-import { normalizeImageUrl } from './imageUrl';
+import { normalizeImageUrl } from './imageUrl.js';
 
 /**
  * Normalizes Amazon Image URLs to high-resolution (1500px)
@@ -12,6 +12,23 @@ import { normalizeImageUrl } from './imageUrl';
 export const enhanceAmazonImageUrl = (url) => {
   if (!url || typeof url !== 'string') return '';
   let cleanUrl = url.trim();
+
+  // If it's a relative URL or non-http, ignore
+  if (!cleanUrl.startsWith('http')) return '';
+
+  // Exclude non-product icons, badges, logos, sprites
+  if (
+    cleanUrl.includes('sprite') || 
+    cleanUrl.includes('transparent-pixel') || 
+    cleanUrl.includes('grey-pixel') ||
+    cleanUrl.includes('loading') ||
+    cleanUrl.includes('logo') ||
+    cleanUrl.includes('icon') ||
+    cleanUrl.includes('uedata') ||
+    cleanUrl.includes('amazon-fashion-logo')
+  ) {
+    return '';
+  }
 
   // Amazon image resolution enhancer: replace thumbnail suffixes with SL1500
   // e.g. https://m.media-amazon.com/images/I/71XXXXX._AC_UL320_.jpg -> ._SL1500_.jpg
@@ -35,9 +52,8 @@ export const extractAmazonImagesFromHtml = (html) => {
         const decoded = match[1].replace(/&quot;/g, '"');
         const imgMap = JSON.parse(decoded);
         Object.keys(imgMap).forEach((url) => {
-          if (url && url.startsWith('http')) {
-            images.add(enhanceAmazonImageUrl(url));
-          }
+          const enhanced = enhanceAmazonImageUrl(url);
+          if (enhanced) images.add(enhanced);
         });
       } catch (err) {
         // Continue
@@ -51,7 +67,7 @@ export const extractAmazonImagesFromHtml = (html) => {
       try {
         const parsed = JSON.parse(colorMatch[1]);
         parsed.forEach((item) => {
-          if (item.hiRes) images.add(item.hiRes);
+          if (item.hiRes) images.add(enhanceAmazonImageUrl(item.hiRes));
           else if (item.large) images.add(enhanceAmazonImageUrl(item.large));
         });
       } catch {}
@@ -61,25 +77,51 @@ export const extractAmazonImagesFromHtml = (html) => {
     const ogMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
                     html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
     if (ogMatch && ogMatch[1]) {
-      images.add(enhanceAmazonImageUrl(ogMatch[1]));
+      const enhanced = enhanceAmazonImageUrl(ogMatch[1]);
+      if (enhanced) images.add(enhanced);
     }
 
     // 4. Check landingImage tag
     const landingMatch = html.match(/id=["']landingImage["'][^>]*src=["']([^"']+)["']/i);
     if (landingMatch && landingMatch[1]) {
-      images.add(enhanceAmazonImageUrl(landingMatch[1]));
+      const enhanced = enhanceAmazonImageUrl(landingMatch[1]);
+      if (enhanced) images.add(enhanced);
     }
 
     // 5. Generic Amazon media CDN matches
     const mediaMatches = html.match(/https:\/\/m\.media-amazon\.com\/images\/I\/[a-zA-Z0-9%_-]+\.(jpg|jpeg|png|webp)/gi);
     if (mediaMatches) {
-      mediaMatches.slice(0, 10).forEach(u => images.add(enhanceAmazonImageUrl(u)));
+      mediaMatches.forEach(u => {
+        const enhanced = enhanceAmazonImageUrl(u);
+        if (enhanced) images.add(enhanced);
+      });
     }
   } catch (e) {
     console.warn("Error parsing Amazon images from HTML:", e);
   }
 
-  return Array.from(images).filter(url => !url.includes('sprite') && !url.includes('transparent-pixel') && !url.includes('icon'));
+  return Array.from(images).filter(Boolean);
+};
+
+/**
+ * Auto-detect boutique category from text
+ */
+export const detectBoutiqueCategory = (title = '', description = '') => {
+  const text = `${title} ${description}`.toLowerCase();
+  if (text.includes('saree') || text.includes('sari')) {
+    return 'Sarees & Drapes';
+  } else if (text.includes('lehenga') || text.includes('choli') || text.includes('ghagra')) {
+    return 'Lehengas & Cholis';
+  } else if (text.includes('gown') || text.includes('anarkali') || text.includes('maxi dress')) {
+    return 'Gowns & Anarkalis';
+  } else if (text.includes('co-ord') || text.includes('coord') || text.includes('western') || text.includes('jumpsuit')) {
+    return 'Co-ord Sets';
+  } else if (text.includes('dupatta') || text.includes('stole') || text.includes('shawl')) {
+    return 'Dupattas & Shawls';
+  } else if (text.includes('kurti') || text.includes('kurta') || text.includes('suit') || text.includes('pant set')) {
+    return 'Kurtis & Suits';
+  }
+  return 'Kurtis & Suits';
 };
 
 /**
@@ -97,7 +139,6 @@ export const parseAmazonProductHtml = (html, sourceUrl = '') => {
                   doc.querySelector('meta[property="og:title"]');
   if (titleEl) {
     title = (titleEl.tagName === 'META' ? titleEl.getAttribute('content') : titleEl.textContent || '').trim();
-    // Clean trailing site name
     title = title.replace(/\s*:\s*Amazon\.[a-z.]+/i, '').replace(/\|\s*Amazon\.[a-z.]+/i, '').trim();
   }
 
@@ -134,7 +175,6 @@ export const parseAmazonProductHtml = (html, sourceUrl = '') => {
   // 5. Fabric & Product Overview Table
   let fabric = 'Pure Cotton / Silk';
   let color = 'Multicolor';
-  let categoryHint = '';
 
   const poRows = doc.querySelectorAll('#productOverview_feature_div tr, #poExpander tr, .po-row');
   poRows.forEach(row => {
@@ -168,23 +208,7 @@ export const parseAmazonProductHtml = (html, sourceUrl = '') => {
     description = 'Handcrafted premium ethnic fashion ensemble with exquisite embroidery and festive luxury finish.';
   }
 
-  // 7. Auto-detect boutique category from Title/Description
-  const combinedText = `${title} ${description}`.toLowerCase();
-  if (combinedText.includes('kurti') || combinedText.includes('kurta') || combinedText.includes('suit')) {
-    categoryHint = 'Kurtis & Suits';
-  } else if (combinedText.includes('saree') || combinedText.includes('sari')) {
-    categoryHint = 'Sarees & Drapes';
-  } else if (combinedText.includes('lehenga') || combinedText.includes('choli')) {
-    categoryHint = 'Lehengas & Cholis';
-  } else if (combinedText.includes('dress') || combinedText.includes('gown') || combinedText.includes('anarkali')) {
-    categoryHint = 'Gowns & Anarkalis';
-  } else if (combinedText.includes('co-ord') || combinedText.includes('coord') || combinedText.includes('western')) {
-    categoryHint = 'Co-ord Sets';
-  } else if (combinedText.includes('dupatta') || combinedText.includes('stole')) {
-    categoryHint = 'Dupattas & Shawls';
-  } else {
-    categoryHint = 'Kurtis & Suits';
-  }
+  const categoryHint = detectBoutiqueCategory(title, description);
 
   return {
     name: title || 'Imported Fashion Ensemble',
@@ -207,7 +231,10 @@ export const parseAmazonProductHtml = (html, sourceUrl = '') => {
 };
 
 /**
- * Intelligent Multi-Proxy Amazon URL Fetcher
+ * Intelligent Multi-Engine Amazon & E-Commerce Link Fetcher
+ * Engine 1: Microlink Scraper with custom Amazon metadata selectors (Zero CORS, handles shortlinks)
+ * Engine 2: AllOrigins JSON Reader
+ * Engine 3: Heuristic ASIN Extraction Fallback
  */
 export const fetchAndParseAmazonProduct = async (url) => {
   if (!url || typeof url !== 'string') {
@@ -216,43 +243,147 @@ export const fetchAndParseAmazonProduct = async (url) => {
 
   const cleanUrl = url.trim();
 
-  // Array of public CORS proxy services for fallback resilience
-  const proxyEndpoints = [
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(cleanUrl)}`,
-    `https://corsproxy.io/?url=${encodeURIComponent(cleanUrl)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(cleanUrl)}`
-  ];
+  // --------------------------------------------------------------------------
+  // ENGINE 1: Microlink Open Metadata API with Custom Amazon Selectors
+  // --------------------------------------------------------------------------
+  try {
+    const customSelectors = {
+      price: { selector: '.a-price-whole, #priceblock_ourprice, #priceblock_dealprice, .a-price .a-offscreen' },
+      mrp: { selector: '.basisPrice .a-offscreen, .a-text-price .a-offscreen, #priceblock_sns_price' },
+      images: { selectorAll: 'img', attr: 'src' },
+      fabric: { selector: '#productOverview_feature_div tr:nth-child(1) td:nth-child(2), #productOverview_feature_div tr:nth-child(2) td:nth-child(2)' },
+      bullets: { selectorAll: '#feature-bullets li span.a-list-item' }
+    };
 
-  let lastError = null;
+    const microlinkUrl = `https://api.microlink.io?url=${encodeURIComponent(cleanUrl)}` +
+      `&data.price=${encodeURIComponent(JSON.stringify(customSelectors.price))}` +
+      `&data.mrp=${encodeURIComponent(JSON.stringify(customSelectors.mrp))}` +
+      `&data.images=${encodeURIComponent(JSON.stringify(customSelectors.images))}` +
+      `&data.fabric=${encodeURIComponent(JSON.stringify(customSelectors.fabric))}` +
+      `&data.bullets=${encodeURIComponent(JSON.stringify(customSelectors.bullets))}`;
 
-  for (const proxyUrl of proxyEndpoints) {
-    try {
-      const res = await fetch(proxyUrl, {
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    const res = await fetch(microlinkUrl, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.status === 'success' && json.data) {
+        const d = json.data;
+        let title = (d.title || '').trim();
+        title = title.replace(/^Buy\s+/i, '')
+                     .replace(/\s*:\s*Amazon\.[a-z.]+/i, '')
+                     .replace(/\s+at\s+Amazon\.[a-z.]+/i, '')
+                     .replace(/\s+from\s+[a-zA-Z\s]+at\s+Amazon\.[a-z.]+/i, '')
+                     .trim();
+
+        // Extract Price
+        let price = 0;
+        if (d.price) {
+          const rawP = String(d.price).replace(/[^0-9.]/g, '');
+          price = parseFloat(rawP) || 0;
         }
-      });
 
-      if (!res.ok) continue;
+        // Extract MRP
+        let originalPrice = 0;
+        if (d.mrp) {
+          const rawMrp = String(d.mrp).replace(/[^0-9.]/g, '');
+          originalPrice = parseFloat(rawMrp) || 0;
+        }
+        if (!originalPrice || originalPrice <= price) {
+          originalPrice = price > 0 ? Math.round(price * 1.6) : 1999;
+        }
 
-      const html = await res.text();
-      if (html && (html.includes('productTitle') || html.includes('landingImage') || html.includes('a-price') || html.includes('og:title') || html.includes('media-amazon.com'))) {
-        const product = parseAmazonProductHtml(html, cleanUrl);
+        // Collect Multi-Photos
+        const photoSet = new Set();
+        if (d.image?.url) {
+          const primaryEnhanced = enhanceAmazonImageUrl(d.image.url);
+          if (primaryEnhanced) photoSet.add(primaryEnhanced);
+        }
+
+        if (Array.isArray(d.images)) {
+          d.images.forEach(imgUrl => {
+            if (typeof imgUrl === 'string' && imgUrl.includes('media-amazon.com/images/I/')) {
+              const enhanced = enhanceAmazonImageUrl(imgUrl);
+              if (enhanced) photoSet.add(enhanced);
+            }
+          });
+        }
+
+        const photoList = Array.from(photoSet);
+        if (photoList.length === 0) {
+          photoList.push('https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80');
+        }
+
+        // Extract Description & Bullets
+        let description = '';
+        if (Array.isArray(d.bullets) && d.bullets.length > 0) {
+          description = d.bullets.slice(0, 5).map(b => `• ${String(b).trim()}`).join('\n');
+        } else if (d.description) {
+          description = d.description;
+        } else {
+          description = 'Handcrafted premium ethnic fashion ensemble with exquisite embroidery and festive luxury finish.';
+        }
+
+        // Extract Fabric & Category
+        const fabric = d.fabric ? String(d.fabric).trim() : 'Pure Silk / Cotton';
+        const categoryHint = detectBoutiqueCategory(title, description);
+
+        if (title || photoList.length > 0) {
+          return {
+            name: title || 'Imported Fashion Outfit',
+            price: price || 999,
+            originalPrice: originalPrice || 1999,
+            image: photoList[0],
+            images: photoList.slice(0, 6),
+            fabric: fabric,
+            color: 'Multicolor',
+            category: categoryHint,
+            description: description,
+            sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+            badge: 'Trending Import',
+            offer: 'Online Exclusive Offer',
+            inStock: true,
+            rating: 4.8,
+            reviewsCount: 24,
+            sourceUrl: d.url || cleanUrl
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Microlink extraction warning:", err);
+  }
+
+  // --------------------------------------------------------------------------
+  // ENGINE 2: AllOrigins JSON API Proxy Fallback
+  // --------------------------------------------------------------------------
+  try {
+    const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(cleanUrl)}`;
+    const res = await fetch(allOriginsUrl);
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.contents) {
+        const product = parseAmazonProductHtml(json.contents, cleanUrl);
         if (product.name && product.image) {
           return product;
         }
       }
-    } catch (err) {
-      lastError = err;
     }
+  } catch (err) {
+    console.warn("AllOrigins fallback warning:", err);
   }
 
-  // If live proxy failed (e.g., due to Amazon anti-bot), extract ASIN & basic metadata from URL itself
+  // --------------------------------------------------------------------------
+  // ENGINE 3: ASIN & URL Heuristic Fallback
+  // --------------------------------------------------------------------------
   const asinMatch = cleanUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
   if (asinMatch && asinMatch[1]) {
     const asin = asinMatch[1];
     return {
-      name: `Amazon Item (ASIN: ${asin})`,
+      name: `Amazon Designer Outfit (ASIN: ${asin})`,
       price: 999,
       originalPrice: 1999,
       image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
@@ -272,7 +403,7 @@ export const fetchAndParseAmazonProduct = async (url) => {
     };
   }
 
-  throw new Error(lastError ? lastError.message : 'Could not fetch product details from this link. Please use "Paste Amazon Text / HTML" tab to import instantly!');
+  throw new Error('Could not auto-extract product from this link. Please copy and paste the product text in the "Smart Paste" tab to auto-fill instantly!');
 };
 
 /**
@@ -303,13 +434,12 @@ export const parsePastedProductText = (rawText) => {
 
   // Extract Title (First substantial line)
   let name = lines[0] || 'Imported Fashion Kurti';
-  // Filter out price from title line if present
   name = name.replace(/(?:₹|Rs\.?|INR)\s*[\d,]+/gi, '').trim();
 
   // Extract Images if image URLs are found in the text
   const imgUrlRegex = /(https?:\/\/[^\s]+?\.(?:jpg|jpeg|png|webp))/gi;
   const foundImages = rawText.match(imgUrlRegex) || [];
-  const cleanImages = foundImages.map(u => enhanceAmazonImageUrl(u));
+  const cleanImages = foundImages.map(u => enhanceAmazonImageUrl(u)).filter(Boolean);
 
   // Fabric extraction
   let fabric = 'Pure Cotton / Silk';
@@ -325,6 +455,8 @@ export const parsePastedProductText = (rawText) => {
     color = colorMatch[1].trim();
   }
 
+  const categoryHint = detectBoutiqueCategory(name, rawText);
+
   return {
     name: name.slice(0, 100),
     price: price || 999,
@@ -333,7 +465,7 @@ export const parsePastedProductText = (rawText) => {
     images: cleanImages.length > 0 ? cleanImages.slice(0, 6) : ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80'],
     fabric: fabric,
     color: color,
-    category: name.toLowerCase().includes('saree') ? 'Sarees & Drapes' : (name.toLowerCase().includes('lehenga') ? 'Lehengas & Cholis' : 'Kurtis & Suits'),
+    category: categoryHint,
     description: lines.slice(1, 6).join('\n') || 'Handcrafted ethnic design with supreme comfort and festive elegance.',
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
     badge: 'Quick Import',

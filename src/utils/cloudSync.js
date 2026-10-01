@@ -305,7 +305,7 @@ export const fetchCloudSettings = async () => {
       .from('settings')
       .select('*')
       .eq('id', 'store_config')
-      .single();
+      .maybeSingle();
 
     if (!error && data && data.data) {
       const mergedSettings = applyEnvSettingsOverrides(data.data);

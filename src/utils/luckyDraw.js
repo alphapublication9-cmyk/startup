@@ -71,7 +71,7 @@ export const fetchCloudLuckyDrawConfig = async () => {
       .from('settings')
       .select('*')
       .eq('id', 'lucky_draw_config')
-      .single();
+      .maybeSingle();
 
     if (!error && data && data.data) {
       const cloudConfig = data.data;
