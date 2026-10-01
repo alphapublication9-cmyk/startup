@@ -418,9 +418,14 @@ For any exchange / support, contact WhatsApp: ${invoiceData.companyPhone}`;
             <div className="flex items-start justify-between border-b-2 border-stone-800 pb-4 mb-4">
               {/* Brand Logo & Name */}
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-amber-700 flex items-center justify-center text-gold-200 border border-gold-400">
-                    <Crown size={18} />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                    <img 
+                      src={settings?.logoUrl || "/logo.png"} 
+                      alt="Brand Logo" 
+                      className="w-full h-full object-contain"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                    />
                   </div>
                   {isEditing ? (
                     <input

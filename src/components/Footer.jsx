@@ -17,8 +17,12 @@ export const Footer = ({ onOpenAdmin, settings = {}, onSelectCategory, categorie
           {/* Brand Info */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center shadow-md border-2 border-amber-400 shrink-0 bg-[#0a1b24] p-1">
-                <img src="/logo.png" alt={settings.storeName || "RADHIKA KURTI COLLECTION"} className="w-full h-full object-contain" />
+              <div className="w-11 h-11 flex items-center justify-center shrink-0 drop-shadow-md">
+                <img 
+                  src={settings.logoUrl || "/logo.png"} 
+                  alt={settings.storeName || "RADHIKA KURTI COLLECTION"} 
+                  className="w-full h-full object-contain filter drop-shadow-xs" 
+                />
               </div>
               <div>
                 <span className="font-heading text-lg sm:text-xl font-black tracking-wider text-stone-900 block leading-tight">

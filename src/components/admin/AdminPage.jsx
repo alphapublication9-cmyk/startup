@@ -774,8 +774,12 @@ export const AdminPage = ({
         {/* Top Header Strip */}
         <header className="p-4 sm:p-6 flex items-center justify-between border-b border-stone-800/80 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-amber-400 shadow-md bg-[#0a1b24] p-1">
-              <img src="/logo.png" alt="Radhika Kurti Collection" className="w-full h-full object-contain" />
+            <div className="w-11 h-11 flex items-center justify-center shrink-0 drop-shadow-md">
+              <img 
+                src={settings.logoUrl || "/logo.png"} 
+                alt={settings.storeName || "Radhika Kurti Collection"} 
+                className="w-full h-full object-contain filter drop-shadow-xs" 
+              />
             </div>
             <div>
               <span className="font-heading text-lg sm:text-xl font-bold tracking-widest text-gold-300">
@@ -945,8 +949,12 @@ export const AdminPage = ({
           
           {/* Logo & Info */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center border-2 border-amber-400 shadow-md bg-[#0a1b24] p-1 shrink-0">
-              <img src="/logo.png" alt="Radhika Kurti Collection" className="w-full h-full object-contain" />
+            <div className="w-12 h-12 flex items-center justify-center shrink-0 drop-shadow-md">
+              <img 
+                src={settings.logoUrl || "/logo.png"} 
+                alt={settings.storeName || "Radhika Kurti Collection"} 
+                className="w-full h-full object-contain filter drop-shadow-xs" 
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">

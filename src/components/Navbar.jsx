@@ -140,9 +140,9 @@ export const Navbar = ({
             <a href="#" className="flex items-center gap-2 sm:gap-2.5 min-w-0 overflow-hidden group">
               <div className="w-9 h-9 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm">
                 <img 
-                  src="/logo.png" 
-                  alt={settings.storeName || "RADHIKA KURTI COLLECTION"} 
-                  className="w-full h-full object-contain" 
+                  src={settings?.logoUrl || "/logo.png"} 
+                  alt={settings?.storeName || "RADHIKA KURTI COLLECTION"} 
+                  className="w-full h-full object-contain filter drop-shadow-xs" 
                 />
               </div>
               <div className="flex flex-col min-w-0">
