@@ -55,13 +55,18 @@ import {
   Timer,
   Clock,
   Flame,
-  Upload
+  Upload,
+  Users,
+  MousePointerClick,
+  Navigation
 } from 'lucide-react';
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
 import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
+import { getProductAnalyticsList, resetProductAnalytics } from '../../utils/productAnalytics';
+import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV } from '../../utils/customerDirectory';
 import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
@@ -191,6 +196,72 @@ export const AdminPage = ({
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+
+  // Customer Directory (Delivery Leads) State
+  const [customers, setCustomers] = useState(getStoredCustomers);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [selectedCustomerFilter, setSelectedCustomerFilter] = useState('All'); // 'All' | 'Repeat' | 'COD' | 'Prepaid'
+
+  // Product Views & Engagement Analytics State
+  const [productAnalyticsSearch, setProductAnalyticsSearch] = useState('');
+  const [productAnalyticsSort, setProductAnalyticsSort] = useState('views'); // 'views' | 'quickViews' | 'cartAdds' | 'orders' | 'conversionRate'
+  const [analyticsList, setAnalyticsList] = useState(() => getProductAnalyticsList(products));
+
+  useEffect(() => {
+    setAnalyticsList(getProductAnalyticsList(products));
+    setCustomers(getStoredCustomers());
+  }, [products, activeTab]);
+
+  const handleRefreshAnalytics = () => {
+    setAnalyticsList(getProductAnalyticsList(products));
+  };
+
+  const handleResetAnalytics = () => {
+    if (window.confirm("Are you sure you want to reset all product view and click analytics?")) {
+      resetProductAnalytics();
+      setAnalyticsList(getProductAnalyticsList(products));
+    }
+  };
+
+  const handleDeleteCustomer = (customerId) => {
+    if (window.confirm("Remove this customer lead from directory?")) {
+      deleteCustomerLead(customerId);
+      setCustomers(getStoredCustomers());
+    }
+  };
+
+  // Filtered & Sorted Product Analytics
+  const filteredAnalyticsProducts = analyticsList.filter(p => {
+    if (!productAnalyticsSearch.trim()) return true;
+    const query = productAnalyticsSearch.toLowerCase();
+    return p.name.toLowerCase().includes(query) || (p.category && p.category.toLowerCase().includes(query));
+  });
+
+  const sortedAnalyticsProducts = [...filteredAnalyticsProducts].sort((a, b) => {
+    if (productAnalyticsSort === 'views') return (b.views || 0) - (a.views || 0);
+    if (productAnalyticsSort === 'quickViews') return (b.quickViews || 0) - (a.quickViews || 0);
+    if (productAnalyticsSort === 'cartAdds') return (b.cartAdds || 0) - (a.cartAdds || 0);
+    if (productAnalyticsSort === 'orders') return (b.orders || 0) - (a.orders || 0);
+    if (productAnalyticsSort === 'conversionRate') return (b.conversionRate || 0) - (a.conversionRate || 0);
+    return 0;
+  });
+
+  // Filtered Customers Directory
+  const filteredCustomers = customers.filter(c => {
+    if (customerSearchQuery.trim()) {
+      const q = customerSearchQuery.toLowerCase();
+      const match = (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.includes(q)) ||
+        (c.city && c.city.toLowerCase().includes(q)) ||
+        (c.pincode && c.pincode.includes(q)) ||
+        (c.address && c.address.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+    if (selectedCustomerFilter === 'Repeat') return (c.totalOrders || 0) > 1;
+    if (selectedCustomerFilter === 'COD') return c.preferredPayment === 'Cash on Delivery' || c.preferredPayment === 'COD';
+    if (selectedCustomerFilter === 'Prepaid') return c.preferredPayment === 'Prepaid' || c.preferredPayment === 'UPI';
+    return true;
+  });
 
   // Product Form State (Supports 3-4+ Multi-Images)
   const [formData, setFormData] = useState({
@@ -1390,6 +1461,18 @@ export const AdminPage = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('customers')}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'customers'
+                ? 'bg-[#faf7f2] text-brand-950 border-stone-300 shadow-sm -mb-[1px]'
+                : 'text-stone-300 hover:text-white'
+            }`}
+          >
+            <Users size={15} className={activeTab === 'customers' ? 'text-brand-900' : 'text-gold-400'} />
+            <span className="font-extrabold text-amber-700">👥 Customer Leads ({customers.length})</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('reviews')}
             className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'reviews'
@@ -1893,6 +1976,144 @@ export const AdminPage = ({
                 </div>
               </div>
 
+              {/* PRODUCT ENGAGEMENT & VIEW ANALYTICS SECTION */}
+              <div className="pt-6 border-t border-stone-200 space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-serif text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
+                      <MousePointerClick size={20} className="text-brand-900" />
+                      <span>Product View, Open & Engagement Analytics</span>
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      Live tracking of which products users are viewing, opening in QuickView, adding to cart and converting to orders.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRefreshAnalytics}
+                      className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Refresh Analytics Stats"
+                    >
+                      <RotateCcw size={13} />
+                      <span>Refresh</span>
+                    </button>
+
+                    <button
+                      onClick={handleResetAnalytics}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Reset All Tracked Analytics"
+                    >
+                      <Trash2 size={13} />
+                      <span>Reset</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search & Sorting Controls */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search product by title or category..."
+                      value={productAnalyticsSearch}
+                      onChange={(e) => setProductAnalyticsSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-stone-300 rounded-xl text-xs focus:outline-none focus:border-brand-700"
+                    />
+                    <Search size={15} className="absolute left-3 top-2.5 text-stone-400" />
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-bold text-stone-600">Sort:</span>
+                    <select
+                      value={productAnalyticsSort}
+                      onChange={(e) => setProductAnalyticsSort(e.target.value)}
+                      className="px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-800 focus:outline-none focus:border-brand-700 cursor-pointer"
+                    >
+                      <option value="views">Most Viewed (👁️ Views)</option>
+                      <option value="quickViews">QuickView Opens (🔍 Lightbox)</option>
+                      <option value="cartAdds">Cart Additions (🛒 Bag Adds)</option>
+                      <option value="orders">Orders Placed (📦 Orders)</option>
+                      <option value="conversionRate">Conversion Rate % (📈 High to Low)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Analytics Table */}
+                <div className="overflow-x-auto border border-stone-200 rounded-2xl shadow-xs bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-stone-100/80 text-stone-700 font-extrabold border-b border-stone-200 uppercase tracking-wider text-[10px]">
+                        <th className="py-3 px-4">Rank & Product Name</th>
+                        <th className="py-3 px-3">Category</th>
+                        <th className="py-3 px-3">Price</th>
+                        <th className="py-3 px-3 text-center">👁️ Views</th>
+                        <th className="py-3 px-3 text-center">🔍 Quick View</th>
+                        <th className="py-3 px-3 text-center">🛒 Cart Adds</th>
+                        <th className="py-3 px-3 text-center">📦 Orders</th>
+                        <th className="py-3 px-4 text-center">📈 Conversion</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {sortedAnalyticsProducts.map((p, index) => (
+                        <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                                index === 0 ? 'bg-gold-400 text-stone-950 shadow-xs' :
+                                index === 1 ? 'bg-stone-300 text-stone-800' :
+                                index === 2 ? 'bg-amber-200 text-amber-900' :
+                                'bg-stone-100 text-stone-600'
+                              }`}>
+                                #{index + 1}
+                              </span>
+                              <div className="w-10 h-13 rounded-lg overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
+                                <img src={normalizeImageUrl(p.image)} alt="" className="w-full h-full object-cover object-top" />
+                              </div>
+                              <div className="min-w-0 max-w-xs">
+                                <p className="font-bold text-stone-900 truncate">{p.name}</p>
+                                <p className="text-[10px] text-stone-400 font-mono">ID: {p.id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 bg-stone-100 text-stone-700 rounded-md font-bold text-[10px]">
+                              {p.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-bold text-stone-900">
+                            ₹{p.price?.toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-3 text-center font-extrabold text-brand-950">
+                            {p.views || 0}
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-stone-700">
+                            {p.quickViews || 0}
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-amber-700">
+                            {p.cartAdds || 0}
+                          </td>
+                          <td className="py-3 px-3 text-center font-extrabold text-emerald-700">
+                            {p.orders || 0}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`px-2 py-0.5 rounded-md font-black text-[10px] ${
+                              p.conversionRate > 5 
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                                : p.conversionRate > 0 
+                                ? 'bg-blue-100 text-blue-800' 
+                                : 'bg-stone-100 text-stone-500'
+                            }`}>
+                              {p.conversionRate}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
@@ -2094,7 +2315,160 @@ export const AdminPage = ({
           </div>
         )}
 
-        {/* TAB 7: CUSTOMER REVIEWS & RATINGS */}
+        {/* TAB 7: CUSTOMER LEADS & DELIVERY DIRECTORY */}
+        {activeTab === 'customers' && (
+          <div className="space-y-6">
+            {/* Top Leads Header Banner */}
+            <div className="bg-gradient-to-r from-stone-900 via-brand-950 to-stone-900 text-white p-6 sm:p-7 rounded-3xl border border-gold-400/50 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gold-400/20 text-gold-300 text-xs font-bold uppercase tracking-wider">
+                  <Users size={14} />
+                  <span>Customer CRM & Delivery Database</span>
+                </div>
+                <h2 className="font-serif text-2xl font-bold text-white">
+                  Customer Leads & Delivery Address Directory ({customers.length})
+                </h2>
+                <p className="text-xs sm:text-sm text-stone-300 max-w-2xl leading-relaxed">
+                  Permanent records of all customer names, phone numbers, delivery addresses, and order history captured during checkout.
+                </p>
+              </div>
+
+              <button
+                onClick={exportCustomersToCSV}
+                disabled={customers.length === 0}
+                className="px-5 py-3 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 text-brand-950 font-extrabold text-xs rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                <FileSpreadsheet size={16} />
+                <span>Export Customer Leads (CSV)</span>
+              </button>
+            </div>
+
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200 shadow-sm">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by customer name, mobile number, city, pincode, address..."
+                  value={customerSearchQuery}
+                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs focus:outline-none focus:border-brand-700"
+                />
+                <Search size={16} className="absolute left-3 top-3 text-stone-400" />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-stone-600 shrink-0">Filter:</span>
+                <select
+                  value={selectedCustomerFilter}
+                  onChange={(e) => setSelectedCustomerFilter(e.target.value)}
+                  className="px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-800 focus:outline-none focus:border-brand-700 cursor-pointer"
+                >
+                  <option value="All">All Customer Leads</option>
+                  <option value="Repeat">Repeat Buyers (2+ Orders)</option>
+                  <option value="COD">Cash On Delivery (COD)</option>
+                  <option value="Prepaid">Prepaid / UPI</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Customer Cards Grid */}
+            {filteredCustomers.length === 0 ? (
+              <div className="bg-white p-12 text-center rounded-2xl border border-stone-200 shadow-sm">
+                <Users size={36} className="mx-auto text-stone-300 mb-2" />
+                <p className="font-serif text-base font-bold text-stone-700">No Customer Leads Found</p>
+                <p className="text-xs text-stone-400 mt-1">
+                  When customers fill their delivery details in checkout, their full address and contact info will appear here automatically.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCustomers.map(cust => (
+                  <div key={cust.id} className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm space-y-4 flex flex-col justify-between hover:border-amber-400 transition-colors">
+                    <div className="space-y-3">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-stone-100">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-brand-50 border border-brand-200 text-brand-950 font-bold flex items-center justify-center text-sm shrink-0">
+                            {cust.name ? cust.name.charAt(0).toUpperCase() : 'C'}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm text-stone-900 truncate">{cust.name || 'Anonymous Customer'}</h4>
+                            <p className="text-[11px] text-stone-500 font-mono flex items-center gap-1">
+                              <Phone size={11} className="text-stone-400" />
+                              <span>{cust.phone || 'No phone'}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${
+                          cust.totalOrders > 1 
+                            ? 'bg-purple-100 text-purple-800 border border-purple-200' 
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {cust.totalOrders > 1 ? `★ ${cust.totalOrders} Orders` : '1st Order'}
+                        </span>
+                      </div>
+
+                      {/* Delivery Address Box */}
+                      <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-1.5 text-xs text-stone-700">
+                        <p className="font-bold text-stone-900 flex items-center gap-1 text-[11px]">
+                          <span>📍 Delivery Address:</span>
+                        </p>
+                        <p className="text-xs text-stone-800 font-medium leading-relaxed">
+                          {cust.address || 'Address not provided'}
+                        </p>
+                        <div className="flex items-center justify-between text-[11px] text-stone-600 pt-1 border-t border-stone-200">
+                          <span><strong>City:</strong> {cust.city || 'Jaipur'}</span>
+                          <span><strong>Pincode:</strong> {cust.pincode || '302002'}</span>
+                        </div>
+                      </div>
+
+                      {/* Payment & Order Summary */}
+                      <div className="flex items-center justify-between text-xs px-1">
+                        <span className="text-stone-500 text-[11px]">Preferred Mode: <strong>{cust.preferredPayment || 'COD'}</strong></span>
+                        <span className="font-black text-brand-950 text-xs">Total: ₹{cust.totalSpent?.toLocaleString('en-IN') || 0}</span>
+                      </div>
+                    </div>
+
+                    {/* Actions: 1-Click WhatsApp, Call & Delete */}
+                    <div className="pt-2 border-t border-stone-100 flex items-center gap-2">
+                      <a
+                        href={`https://wa.me/91${String(cust.phone || '').replace(/[^\d]/g, '')}?text=Hello%20${encodeURIComponent(cust.name || 'Customer')},%20greetings%20from%20${encodeURIComponent(settings.storeName || 'Radhika Kurti Collection')}!`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+                        title="Open WhatsApp Chat with Customer"
+                      >
+                        <MessageCircle size={13} />
+                        <span>WhatsApp</span>
+                      </a>
+
+                      {cust.phone && (
+                        <a
+                          href={`tel:${cust.phone}`}
+                          className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                          title="Direct Call Customer"
+                        >
+                          <Phone size={13} />
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleDeleteCustomer(cust.id)}
+                        className="p-2 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                        title="Delete Customer Lead"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 8: CUSTOMER REVIEWS & RATINGS */}
         {activeTab === 'reviews' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-sm">

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
+import { trackProductAction } from '../utils/productAnalytics';
 
 export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} }) => {
   if (!product) return null;
@@ -44,6 +45,13 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
   const images = rawImages.filter(Boolean);
   const activeImage = images[selectedImageIndex] || product.image;
 
+  // Track product view on open
+  useEffect(() => {
+    if (product && product.id) {
+      trackProductAction(product.id, product, 'quick_view');
+    }
+  }, [product?.id]);
+
   // Keyboard navigation for lightbox
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -63,12 +71,14 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
   const savingsAmount = product.originalPrice ? product.originalPrice - product.price : 0;
 
   const handleAddToCart = () => {
+    trackProductAction(product.id, product, 'cart_add');
     onAddToCart(product, selectedSize, quantity);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
 
   const handleChannelOrder = () => {
+    trackProductAction(product.id, product, 'order');
     const url = generateSingleProductChannelUrl({ product, selectedSize, settings });
     window.open(url, '_blank');
   };

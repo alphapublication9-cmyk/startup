@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ShoppingBag, Eye, Star, MessageCircle, Check, Sparkles, Heart, Zap, Send } from 'lucide-react';
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
+import { trackProductAction } from '../utils/productAnalytics';
 
 export const ProductCard = ({ 
   product, 
@@ -24,13 +25,20 @@ export const ProductCard = ({
 
   const handleAdd = (e, sizeToUse = selectedSize) => {
     e.stopPropagation();
+    trackProductAction(product.id, product, 'cart_add');
     onAddToCart(product, sizeToUse);
     setIsAddedRecently(true);
     setTimeout(() => setIsAddedRecently(false), 1800);
   };
 
+  const handleCardClick = () => {
+    trackProductAction(product.id, product, 'view');
+    onQuickView(product);
+  };
+
   const handleDirectChannelOrder = (e) => {
     e.stopPropagation();
+    trackProductAction(product.id, product, 'order');
     const url = generateSingleProductChannelUrl({ product, selectedSize, settings });
     window.open(url, '_blank');
   };
@@ -42,7 +50,7 @@ export const ProductCard = ({
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       whileHover={{ y: -6 }}
-      onClick={() => onQuickView(product)}
+      onClick={handleCardClick}
       className="group bg-white rounded-3xl overflow-hidden border border-[#ebdcc7]/80 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer relative"
     >
       {/* Top Image Container with Multi-Image Hover Flip */}

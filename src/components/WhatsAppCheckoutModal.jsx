@@ -15,6 +15,8 @@ import {
 import confetti from 'canvas-confetti';
 import { generateOrderUrlByChannel, cleanTelegramHandle } from '../utils/whatsapp';
 import { saveNewOrder } from '../utils/storage';
+import { recordCustomerLead } from '../utils/customerDirectory';
+import { trackProductAction } from '../utils/productAnalytics';
 
 export const WhatsAppCheckoutModal = ({ 
   isOpen, 
@@ -126,6 +128,20 @@ export const WhatsAppCheckoutModal = ({
       status: `${activeChannelName} Inquiry Sent`
     };
     saveNewOrder(newOrder);
+
+    // Save full customer delivery profile in Customer Directory
+    recordCustomerLead(customer, {
+      orderId: newOrder.id,
+      amount: grandTotal,
+      items: cartItems,
+      channel: targetChannel,
+      date: newOrder.createdAt
+    });
+
+    // Track product orders in Product Analytics
+    cartItems.forEach(item => {
+      trackProductAction(item.id, item, 'order');
+    });
 
     // Fire Confetti
     try {
