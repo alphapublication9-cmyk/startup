@@ -21,43 +21,75 @@ import { getLuckyDrawConfig, fetchCloudLuckyDrawConfig, saveLuckyDrawConfig } fr
 /**
  * 1. PRODUCTS
  */
-const mapProductToRow = (p) => ({
-  id: String(p.id),
-  name: p.name,
-  category: p.category,
-  price: p.price,
-  original_price: p.originalPrice || null,
-  image: p.image,
-  images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
-  sizes: Array.isArray(p.sizes) ? p.sizes : ['S', 'M', 'L', 'XL'],
-  fabric: p.fabric || null,
-  color: p.color || null,
-  badge: p.badge || null,
-  offer: p.offer || null,
-  in_stock: p.inStock !== false,
-  rating: p.rating || 4.9,
-  reviews_count: p.reviewsCount || 42,
-  description: p.description || null
-});
+const parseImages = (imgs, fallbackImg) => {
+  if (Array.isArray(imgs) && imgs.length > 0) return imgs.filter(Boolean);
+  if (typeof imgs === 'string' && imgs.trim()) {
+    try {
+      const parsed = JSON.parse(imgs);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter(Boolean);
+    } catch {
+      if (imgs.startsWith('http') || imgs.startsWith('data:image/') || imgs.includes('googleusercontent.com')) return [imgs];
+    }
+  }
+  return fallbackImg ? [fallbackImg] : [];
+};
 
-const mapRowToProduct = (item) => ({
-  id: item.id,
-  name: item.name,
-  category: item.category,
-  price: Number(item.price),
-  originalPrice: item.original_price ? Number(item.original_price) : undefined,
-  image: item.image,
-  images: Array.isArray(item.images) && item.images.length > 0 ? item.images : (item.image ? [item.image] : []),
-  sizes: Array.isArray(item.sizes) ? item.sizes : ['S', 'M', 'L', 'XL'],
-  fabric: item.fabric || '',
-  color: item.color || '',
-  badge: item.badge || '',
-  offer: item.offer || '',
-  inStock: item.in_stock !== false,
-  rating: Number(item.rating || 4.9),
-  reviewsCount: Number(item.reviews_count || 42),
-  description: item.description || ''
-});
+const parseSizes = (sizes) => {
+  if (Array.isArray(sizes) && sizes.length > 0) return sizes;
+  if (typeof sizes === 'string' && sizes.trim()) {
+    try {
+      const parsed = JSON.parse(sizes);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {
+      return sizes.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+  return ['S', 'M', 'L', 'XL'];
+};
+
+const mapProductToRow = (p) => {
+  const imagesArr = parseImages(p.images, p.image);
+  return {
+    id: String(p.id),
+    name: p.name,
+    category: p.category,
+    price: p.price,
+    original_price: p.originalPrice || null,
+    image: p.image || imagesArr[0] || '',
+    images: imagesArr,
+    sizes: parseSizes(p.sizes),
+    fabric: p.fabric || null,
+    color: p.color || null,
+    badge: p.badge || null,
+    offer: p.offer || null,
+    in_stock: p.inStock !== false,
+    rating: p.rating || 4.9,
+    reviews_count: p.reviewsCount || 42,
+    description: p.description || null
+  };
+};
+
+const mapRowToProduct = (item) => {
+  const imagesArr = parseImages(item.images, item.image);
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    price: Number(item.price),
+    originalPrice: item.original_price ? Number(item.original_price) : undefined,
+    image: item.image || imagesArr[0] || '',
+    images: imagesArr,
+    sizes: parseSizes(item.sizes),
+    fabric: item.fabric || '',
+    color: item.color || '',
+    badge: item.badge || '',
+    offer: item.offer || '',
+    inStock: item.in_stock !== false,
+    rating: Number(item.rating || 4.9),
+    reviewsCount: Number(item.reviews_count || 42),
+    description: item.description || ''
+  };
+};
 
 export const fetchCloudProducts = async () => {
   const supabase = getSupabase();

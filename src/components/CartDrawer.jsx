@@ -443,17 +443,27 @@ export const CartDrawer = ({
                       </div>
 
                       {/* Grand Prize Preview */}
-                      <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-amber-200 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-base">👑</span>
+                      <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-amber-200 text-xs gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {luckyConfig.prizes?.[0]?.image ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-amber-300 shrink-0 bg-stone-100 shadow-2xs">
+                              <img 
+                                src={normalizeImageUrl(luckyConfig.prizes[0].image)} 
+                                alt="Prize" 
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-xl shrink-0">👑</span>
+                          )}
                           <div className="min-w-0">
-                            <span className="text-[9px] text-stone-500 font-bold block uppercase tracking-wider">
-                              Grand Giveaway Prize
+                            <span className="text-[9px] text-amber-900/80 font-extrabold block uppercase tracking-wider">
+                              👑 Grand Giveaway Prize
                             </span>
                             <strong className="text-stone-900 text-xs font-bold truncate block">
                               {isDrawEligible 
-                                ? (luckyUser ? `Ticket #${luckyUser.ticketNumber} Qualifies for Banarasi Saree (₹4,999)` : 'Heritage Pure Katan Banarasi Silk Saree (₹4,999)')
-                                : 'Pure Katan Banarasi Silk Saree (Worth ₹4,999)'}
+                                ? (luckyUser ? `Ticket #${luckyUser.ticketNumber} Qualifies for ${luckyConfig.prizes?.[0]?.title || 'Banarasi Saree'}` : (luckyConfig.prizes?.[0]?.title || 'Heritage Pure Banarasi Silk Saree'))
+                                : (luckyConfig.prizes?.[0]?.title ? `${luckyConfig.prizes[0].title} (${luckyConfig.prizes[0].worth || '₹4,999'})` : 'Pure Katan Banarasi Saree (Worth ₹4,999)')}
                             </strong>
                           </div>
                         </div>
