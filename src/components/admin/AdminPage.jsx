@@ -484,6 +484,112 @@ export const AdminPage = ({
     }
   };
 
+  // Direct Clipboard Paste (Ctrl+V) handler for product photos
+  const handlePasteProductImage = async (index, e) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    // 1. Check for image files in clipboard (e.g. copied from desktop, file explorer, screenshot)
+    const items = clipboardData.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            try {
+              const resultUrl = await compressImageFile(file);
+              if (resultUrl) {
+                const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
+                currentImgs[index] = resultUrl;
+                setFormData(prev => ({
+                  ...prev,
+                  image: index === 0 ? resultUrl : (prev.image || currentImgs[0]),
+                  images: currentImgs
+                }));
+              }
+            } catch (err) {
+              console.error("Clipboard image paste error:", err);
+            }
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Check for image text / URLs / data URLs in clipboard
+    const pastedText = clipboardData.getData('text');
+    if (pastedText && (pastedText.startsWith('http') || pastedText.startsWith('data:image/') || isGoogleDriveUrl(pastedText))) {
+      e.preventDefault();
+      await handleUpdateProductImage(index, pastedText);
+    }
+  };
+
+  // Drag and drop image file directly onto photo slot
+  const handleDropProductImage = async (index, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      try {
+        const resultUrl = await compressImageFile(file);
+        if (resultUrl) {
+          const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
+          currentImgs[index] = resultUrl;
+          setFormData(prev => ({
+            ...prev,
+            image: index === 0 ? resultUrl : (prev.image || currentImgs[0]),
+            images: currentImgs
+          }));
+        }
+      } catch (err) {
+        console.error("Drop image error:", err);
+      }
+    }
+  };
+
+  // 1-Click Clipboard Paste button using navigator.clipboard API
+  const handlePasteFromClipboardBtn = async (index) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const item of clipboardItems) {
+          for (const type of item.types) {
+            if (type.startsWith('image/')) {
+              const blob = await item.getType(type);
+              const file = new File([blob], 'clipboard-photo.png', { type });
+              const resultUrl = await compressImageFile(file);
+              if (resultUrl) {
+                const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
+                currentImgs[index] = resultUrl;
+                setFormData(prev => ({
+                  ...prev,
+                  image: index === 0 ? resultUrl : (prev.image || currentImgs[0]),
+                  images: currentImgs
+                }));
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // Fallback to text read
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && (text.startsWith('http') || text.startsWith('data:image/') || isGoogleDriveUrl(text))) {
+          await handleUpdateProductImage(index, text);
+          return;
+        }
+      }
+
+      alert("Click inside the box and press Ctrl + V on your keyboard to paste the copied image.");
+    } catch (err) {
+      console.warn("Clipboard read notice:", err);
+      alert("Please press Ctrl + V inside the input box to paste your copied image.");
+    }
+  };
+
   // Handle Photo File Upload for Category
   const handleCategoryFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -2772,46 +2878,69 @@ export const AdminPage = ({
 
                       {/* Input Grid */}
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                        {/* Thumbnail */}
+                        {/* Thumbnail & Drag-and-Drop Zone */}
                         <div className="sm:col-span-3">
-                          <div className="aspect-[3/4] w-20 sm:w-24 mx-auto rounded-xl overflow-hidden border-2 border-gold-400 shadow-sm bg-stone-100 relative group">
+                          <div 
+                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onDrop={(e) => handleDropProductImage(idx, e)}
+                            className="aspect-[3/4] w-20 sm:w-24 mx-auto rounded-xl overflow-hidden border-2 border-dashed border-amber-400 hover:border-[#700b1d] shadow-sm bg-stone-100 relative group cursor-pointer transition-all flex flex-col items-center justify-center text-center"
+                            title="Drag & Drop image here or click Paste (Ctrl+V)"
+                          >
                             {imgUrl ? (
-                              <img 
-                                src={normalizeImageUrl(imgUrl)} 
-                                alt={`View ${idx + 1}`} 
-                                className="w-full h-full object-cover object-top"
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                                }}
-                              />
+                              <>
+                                <img 
+                                  src={normalizeImageUrl(imgUrl)} 
+                                  alt={`View ${idx + 1}`} 
+                                  className="w-full h-full object-cover object-top"
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-1 text-[9px] font-bold">
+                                  <span>Drop new photo</span>
+                                </div>
+                              </>
                             ) : (
-                              <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 text-[9px] p-2 text-center">
-                                <ImageIcon size={16} className="mb-1 text-stone-300" />
-                                <span>Add Photo</span>
+                              <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 text-[9px] p-2 text-center group-hover:text-amber-900">
+                                <ImageIcon size={18} className="mb-1 text-amber-600 group-hover:scale-110 transition-transform" />
+                                <span className="font-bold text-[9px]">Drop photo or</span>
+                                <span className="text-[8px] text-amber-700 font-extrabold">Ctrl + V</span>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* URL & Upload Inputs */}
+                        {/* URL, Paste & Upload Inputs */}
                         <div className="sm:col-span-9 space-y-2">
                           <div>
-                            <span className="text-[11px] font-semibold text-stone-700 block mb-1">
-                              Option A: Paste Google Drive link or Image URL
-                            </span>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-bold text-stone-700">
+                                Option A: Paste Image or Link (Ctrl + V)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handlePasteFromClipboardBtn(idx)}
+                                className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-md text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                                title="Paste copied image from clipboard"
+                              >
+                                <Copy size={11} />
+                                <span>📋 Paste (Ctrl+V)</span>
+                              </button>
+                            </div>
                             <input
                               type="text"
-                              placeholder="https://drive.google.com/file/d/... or https://..."
+                              placeholder="Click here & press Ctrl + V (or paste URL / Drive link)"
                               value={imgUrl}
                               onChange={(e) => handleUpdateProductImage(idx, e.target.value)}
-                              className="w-full px-3 py-1.5 bg-stone-50 border border-stone-300 rounded-lg text-xs focus:outline-none focus:border-[#700b1d] focus:bg-white shadow-xs font-mono"
+                              onPaste={(e) => handlePasteProductImage(idx, e)}
+                              className="w-full px-3 py-1.5 bg-stone-50 border border-stone-300 focus:border-[#700b1d] focus:bg-white rounded-lg text-xs shadow-xs font-mono"
                             />
                           </div>
 
                           <div>
-                            <span className="text-[11px] font-semibold text-stone-700 block mb-1">
-                              Option B: Upload from Device
+                            <span className="text-[11px] font-bold text-stone-700 block mb-1">
+                              Option B: Choose Image File from Device
                             </span>
                             <input
                               type="file"
@@ -3100,7 +3229,7 @@ export const AdminPage = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-bold text-stone-800 uppercase tracking-wider text-[11px]">
-                      Category Photo / Google Drive Link
+                      Category Photo / Paste (Ctrl + V)
                     </label>
                     {isGoogleDriveUrl(categoryFormData.image) && (
                       <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
@@ -3110,18 +3239,43 @@ export const AdminPage = ({
                   </div>
                   <input
                     type="text"
-                    placeholder="Paste image URL or Google Drive link (https://drive.google.com/...)"
+                    placeholder="Click & press Ctrl + V (or paste image URL / Drive link)"
                     value={categoryFormData.image}
                     onChange={(e) => {
                       const val = e.target.value;
                       setCategoryFormData({ ...categoryFormData, image: normalizeImageUrl(val) });
+                    }}
+                    onPaste={async (e) => {
+                      const clipboardData = e.clipboardData;
+                      if (!clipboardData) return;
+                      const items = clipboardData.items;
+                      if (items) {
+                        for (let i = 0; i < items.length; i++) {
+                          if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+                            const file = items[i].getAsFile();
+                            if (file) {
+                              e.preventDefault();
+                              const res = await compressImageFile(file);
+                              if (res) setCategoryFormData(prev => ({ ...prev, image: res }));
+                              return;
+                            }
+                          }
+                        }
+                      }
+                      const txt = clipboardData.getData('text');
+                      if (txt && (txt.startsWith('http') || txt.startsWith('data:image/') || isGoogleDriveUrl(txt))) {
+                        e.preventDefault();
+                        let clean = normalizeImageUrl(txt);
+                        if (clean.startsWith('data:image/')) clean = await compressDataUrl(clean);
+                        setCategoryFormData(prev => ({ ...prev, image: clean }));
+                      }
                     }}
                     className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs focus:outline-none focus:border-[#700b1d]"
                   />
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-stone-500 font-semibold block mb-0.5">Or Upload Photo File:</span>
+                  <span className="text-[10px] text-stone-500 font-semibold block mb-0.5">Or Choose Photo File from Device:</span>
                   <input
                     type="file"
                     accept="image/*"
