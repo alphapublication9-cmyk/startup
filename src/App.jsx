@@ -27,6 +27,7 @@ import { ProductCard } from './components/ProductCard';
 import { ProductQuickView } from './components/ProductQuickView';
 import { CartDrawer } from './components/CartDrawer';
 import { WhatsAppCheckoutModal } from './components/WhatsAppCheckoutModal';
+import { LuckyDrawModal } from './components/LuckyDrawModal';
 import { CustomerReviews } from './components/CustomerReviews';
 import { AdminPage } from './components/admin/AdminPage';
 import { Footer } from './components/Footer';
@@ -114,6 +115,7 @@ export function App() {
   // Modals & Drawers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isLuckyDrawOpen, setIsLuckyDrawOpen] = useState(false);
   const [checkoutPricing, setCheckoutPricing] = useState(null);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
 
@@ -467,6 +469,7 @@ export function App() {
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenAdmin={handleOpenAdminPage}
+        onOpenLuckyDraw={() => setIsLuckyDrawOpen(true)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         selectedCategory={selectedCategory}
@@ -718,6 +721,17 @@ export function App() {
             localStorage.removeItem('aura_kurti_cart_timer_deadline');
           } catch {}
         }}
+      />
+
+      {/* 🎁 Festive Royal Lucky Draw Modal */}
+      <LuckyDrawModal
+        isOpen={isLuckyDrawOpen}
+        onClose={() => setIsLuckyDrawOpen(false)}
+        onShopNow={() => {
+          setIsLuckyDrawOpen(false);
+          scrollToCatalog();
+        }}
+        settings={settings}
       />
 
       {/* Boutique Footer */}

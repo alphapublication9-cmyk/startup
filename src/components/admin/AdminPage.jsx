@@ -58,7 +58,13 @@ import {
   Upload,
   Users,
   MousePointerClick,
-  Navigation
+  Navigation,
+  Gift,
+  Trophy,
+  Award,
+  Dice5,
+  Sparkle,
+  Share2
 } from 'lucide-react';
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
@@ -67,6 +73,13 @@ import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
 import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
 import { getProductAnalyticsList, resetProductAnalytics } from '../../utils/productAnalytics';
 import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV } from '../../utils/customerDirectory';
+import { 
+  getLuckyDrawConfig, 
+  saveLuckyDrawConfig, 
+  getLuckyDrawUsers, 
+  saveLuckyDrawUsers, 
+  getUserDrawEligibility 
+} from '../../utils/luckyDraw';
 import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
@@ -260,6 +273,246 @@ export const AdminPage = ({
     if (selectedCustomerFilter === 'Repeat') return (c.totalOrders || 0) > 1;
     if (selectedCustomerFilter === 'COD') return c.preferredPayment === 'Cash on Delivery' || c.preferredPayment === 'COD';
     if (selectedCustomerFilter === 'Prepaid') return c.preferredPayment === 'Prepaid' || c.preferredPayment === 'UPI';
+    return true;
+  });
+
+  // ==========================================
+  // LUCKY DRAW & CONTEST STUDIO STATE
+  // ==========================================
+  const [luckyDrawConfig, setLuckyDrawConfig] = useState(getLuckyDrawConfig);
+  const [luckyDrawUsers, setLuckyDrawUsers] = useState(getLuckyDrawUsers);
+  const [drawSearchQuery, setDrawSearchQuery] = useState('');
+  const [drawEligibilityFilter, setDrawEligibilityFilter] = useState('All'); // 'All' | 'Eligible' | 'Ineligible'
+  const [campaignFormData, setCampaignFormData] = useState(() => {
+    const cfg = getLuckyDrawConfig();
+    return {
+      title: cfg.title || '',
+      tagline: cfg.tagline || '',
+      minProductsRequired: cfg.minProductsRequired || 3,
+      announcementDate: cfg.announcementDate || '2026-11-15',
+      terms: cfg.terms || '',
+      isActive: cfg.isActive !== false
+    };
+  });
+  const [isPrizeModalOpen, setIsPrizeModalOpen] = useState(false);
+  const [editingPrizeId, setEditingPrizeId] = useState(null);
+  const [prizeFormData, setPrizeFormData] = useState({
+    id: '',
+    title: '',
+    worth: '₹2,999',
+    image: '',
+    description: ''
+  });
+  const [isPickingWinner, setIsPickingWinner] = useState(false);
+  const [rollingCandidate, setRollingCandidate] = useState(null);
+
+  useEffect(() => {
+    if (activeTab === 'luckydraw') {
+      const cfg = getLuckyDrawConfig();
+      setLuckyDrawConfig(cfg);
+      setLuckyDrawUsers(getLuckyDrawUsers());
+      setCampaignFormData({
+        title: cfg.title || '',
+        tagline: cfg.tagline || '',
+        minProductsRequired: cfg.minProductsRequired || 3,
+        announcementDate: cfg.announcementDate || '2026-11-15',
+        terms: cfg.terms || '',
+        isActive: cfg.isActive !== false
+      });
+    }
+  }, [activeTab]);
+
+  // Lucky Draw Handlers
+  const handleSaveLuckyDrawCampaign = (e) => {
+    e.preventDefault();
+    const updated = {
+      ...luckyDrawConfig,
+      title: campaignFormData.title.trim(),
+      tagline: campaignFormData.tagline.trim(),
+      minProductsRequired: Number(campaignFormData.minProductsRequired) || 3,
+      announcementDate: campaignFormData.announcementDate,
+      terms: campaignFormData.terms,
+      isActive: campaignFormData.isActive
+    };
+    saveLuckyDrawConfig(updated);
+    setLuckyDrawConfig(updated);
+    setSaveSuccessMsg("🎁 Lucky Draw campaign rules & settings saved successfully!");
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  const handleToggleLuckyDrawActive = () => {
+    const updated = {
+      ...luckyDrawConfig,
+      isActive: !luckyDrawConfig.isActive
+    };
+    saveLuckyDrawConfig(updated);
+    setLuckyDrawConfig(updated);
+    setCampaignFormData(prev => ({ ...prev, isActive: updated.isActive }));
+  };
+
+  const handleOpenAddPrize = () => {
+    setEditingPrizeId(null);
+    setPrizeFormData({
+      id: `pz-${Date.now()}`,
+      title: '',
+      worth: '₹2,999',
+      image: '',
+      description: ''
+    });
+    setIsPrizeModalOpen(true);
+  };
+
+  const handleOpenEditPrize = (prize) => {
+    setEditingPrizeId(prize.id);
+    setPrizeFormData({
+      id: prize.id,
+      title: prize.title || '',
+      worth: prize.worth || '',
+      image: prize.image || '',
+      description: prize.description || ''
+    });
+    setIsPrizeModalOpen(true);
+  };
+
+  const handleSavePrize = async (e) => {
+    e.preventDefault();
+    if (!prizeFormData.title.trim()) return;
+
+    let finalImg = prizeFormData.image;
+    if (finalImg && finalImg.startsWith('data:image/')) {
+      try {
+        finalImg = await compressDataUrl(finalImg);
+      } catch {}
+    }
+
+    const currentPrizes = Array.isArray(luckyDrawConfig.prizes) ? luckyDrawConfig.prizes : [];
+    let updatedPrizes;
+    if (editingPrizeId) {
+      updatedPrizes = currentPrizes.map(p => p.id === editingPrizeId ? { ...prizeFormData, image: finalImg } : p);
+    } else {
+      updatedPrizes = [...currentPrizes, { ...prizeFormData, id: `pz-${Date.now()}`, image: finalImg }];
+    }
+
+    const updatedConfig = { ...luckyDrawConfig, prizes: updatedPrizes };
+    saveLuckyDrawConfig(updatedConfig);
+    setLuckyDrawConfig(updatedConfig);
+    setIsPrizeModalOpen(false);
+    setSaveSuccessMsg(`🎁 Giveaway Prize "${prizeFormData.title}" saved!`);
+    setTimeout(() => setSaveSuccessMsg(''), 3000);
+  };
+
+  const handleDeletePrize = (prizeId, prizeTitle) => {
+    if (window.confirm(`Delete prize "${prizeTitle}" from giveaway?`)) {
+      const currentPrizes = Array.isArray(luckyDrawConfig.prizes) ? luckyDrawConfig.prizes : [];
+      const updatedPrizes = currentPrizes.filter(p => p.id !== prizeId);
+      const updatedConfig = { ...luckyDrawConfig, prizes: updatedPrizes };
+      saveLuckyDrawConfig(updatedConfig);
+      setLuckyDrawConfig(updatedConfig);
+    }
+  };
+
+  const handlePrizeFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      if (compressed) {
+        setPrizeFormData(prev => ({ ...prev, image: compressed }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteContestant = (userId) => {
+    if (window.confirm("Are you sure you want to remove this contestant ticket?")) {
+      const updated = luckyDrawUsers.filter(u => u.id !== userId);
+      saveLuckyDrawUsers(updated);
+      setLuckyDrawUsers(updated);
+    }
+  };
+
+  // 1-Click Pick Random Winner
+  const handlePickRandomWinner = () => {
+    const minReq = luckyDrawConfig.minProductsRequired || 3;
+    const eligibleUsers = luckyDrawUsers.filter(u => {
+      const { isEligible } = getUserDrawEligibility(u.phone, minReq);
+      return isEligible;
+    });
+
+    if (eligibleUsers.length === 0) {
+      alert(`No eligible contestants found who have ordered minimum ${minReq} products yet!`);
+      return;
+    }
+
+    setIsPickingWinner(true);
+    let counter = 0;
+    const interval = setInterval(() => {
+      const randomUser = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
+      setRollingCandidate(randomUser);
+      counter++;
+      if (counter > 18) {
+        clearInterval(interval);
+        const finalWinner = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
+        const mainPrize = (luckyDrawConfig.prizes && luckyDrawConfig.prizes[0]) ? luckyDrawConfig.prizes[0].title : 'Mega Festive Hamper';
+        const winnerData = {
+          ticketNumber: finalWinner.ticketNumber,
+          name: finalWinner.name,
+          phone: finalWinner.phone,
+          city: finalWinner.city || 'Jaipur',
+          prizeTitle: mainPrize,
+          declaredAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+          notes: 'Declared live from Admin Studio'
+        };
+        const updatedConfig = { ...luckyDrawConfig, winner: winnerData };
+        saveLuckyDrawConfig(updatedConfig);
+        setLuckyDrawConfig(updatedConfig);
+        setIsPickingWinner(false);
+        setRollingCandidate(null);
+        setSaveSuccessMsg(`🎉 Congratulations! Winner declared: ${finalWinner.name} (${finalWinner.ticketNumber})`);
+        setTimeout(() => setSaveSuccessMsg(''), 5000);
+      }
+    }, 100);
+  };
+
+  const handleDeclareManualWinner = (user, prizeTitle) => {
+    const winnerData = {
+      ticketNumber: user.ticketNumber,
+      name: user.name,
+      phone: user.phone,
+      city: user.city || 'Jaipur',
+      prizeTitle: prizeTitle || (luckyDrawConfig.prizes?.[0]?.title || 'Mega Festive Prize'),
+      declaredAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      notes: 'Selected directly by boutique admin'
+    };
+    const updatedConfig = { ...luckyDrawConfig, winner: winnerData };
+    saveLuckyDrawConfig(updatedConfig);
+    setLuckyDrawConfig(updatedConfig);
+    setSaveSuccessMsg(`🎉 Winner declared: ${user.name} (${user.ticketNumber})`);
+    setTimeout(() => setSaveSuccessMsg(''), 4000);
+  };
+
+  const handleClearWinner = () => {
+    if (window.confirm("Reset / Clear the currently declared winner? Contestants will see draw as pending.")) {
+      const updatedConfig = { ...luckyDrawConfig, winner: null };
+      saveLuckyDrawConfig(updatedConfig);
+      setLuckyDrawConfig(updatedConfig);
+    }
+  };
+
+  const minRequiredForDraw = luckyDrawConfig.minProductsRequired || 3;
+  const filteredDrawUsers = luckyDrawUsers.filter(u => {
+    if (drawSearchQuery.trim()) {
+      const q = drawSearchQuery.toLowerCase();
+      const match = (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.phone && u.phone.includes(q)) ||
+        (u.ticketNumber && u.ticketNumber.toLowerCase().includes(q)) ||
+        (u.city && u.city.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+    const { isEligible } = getUserDrawEligibility(u.phone, minRequiredForDraw);
+    if (drawEligibilityFilter === 'Eligible') return isEligible;
+    if (drawEligibilityFilter === 'Ineligible') return !isEligible;
     return true;
   });
 
@@ -1470,6 +1723,18 @@ export const AdminPage = ({
           >
             <Users size={15} className={activeTab === 'customers' ? 'text-brand-900' : 'text-gold-400'} />
             <span className="font-extrabold text-amber-700">👥 Customer Leads ({customers.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('luckydraw')}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'luckydraw'
+                ? 'bg-[#faf7f2] text-brand-950 border-stone-300 shadow-sm -mb-[1px]'
+                : 'text-stone-300 hover:text-white'
+            }`}
+          >
+            <Gift size={15} className={activeTab === 'luckydraw' ? 'text-amber-600' : 'text-gold-400'} />
+            <span className="font-extrabold text-amber-400">🎁 Lucky Draw Studio ({luckyDrawUsers.length})</span>
           </button>
 
           <button
@@ -3246,6 +3511,557 @@ export const AdminPage = ({
           </div>
         )}
 
+        {/* TAB: LUCKY DRAW & CONTEST STUDIO */}
+        {activeTab === 'luckydraw' && (
+          <div className="space-y-6">
+            
+            {/* 1. Header Studio Bar */}
+            <div className="bg-gradient-to-r from-[#540614] via-[#700b1d] to-[#3b030c] text-gold-100 p-5 sm:p-6 rounded-3xl border border-gold-400/50 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-3 py-1 bg-gold-400/20 text-gold-200 border border-gold-400/50 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Gift size={13} className="text-gold-300" />
+                    Boutique Giveaway Engine
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold flex items-center gap-1 ${
+                    luckyDrawConfig.isActive
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50'
+                      : 'bg-stone-700/60 text-stone-300 border border-stone-600'
+                  }`}>
+                    {luckyDrawConfig.isActive ? '🟢 Campaign Live on Store' : '🔴 Campaign Paused'}
+                  </span>
+                </div>
+                <h2 className="font-heading text-xl sm:text-2xl font-bold text-gold-100 tracking-wide">
+                  {luckyDrawConfig.title || "Festive Mega Royal Lucky Draw"}
+                </h2>
+                <p className="text-xs text-gold-200/80 max-w-2xl font-light">
+                  Rule: Customers must order a minimum of <strong className="text-gold-300 font-bold">{luckyDrawConfig.minProductsRequired || 3} Products</strong> to qualify. Registered users create ID/Password to view their Golden Ticket.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
+                <button
+                  type="button"
+                  onClick={handleToggleLuckyDrawActive}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all ${
+                    luckyDrawConfig.isActive
+                      ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
+                >
+                  {luckyDrawConfig.isActive ? '⏸ Pause Campaign' : '▶ Activate Campaign'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddPrize}
+                  className="px-4 py-2.5 bg-gradient-to-r from-gold-400 to-gold-500 hover:from-gold-500 hover:to-gold-600 text-brand-950 font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <Plus size={15} />
+                  <span>+ Add Custom Prize</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePickRandomWinner}
+                  disabled={isPickingWinner || luckyDrawUsers.length === 0}
+                  className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <Dice5 size={16} className={isPickingWinner ? 'animate-spin' : ''} />
+                  <span>{isPickingWinner ? '🎲 Rolling Draw...' : '🎲 Random Pick Winner'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Winner Announcement Banner (If Declared) */}
+            {luckyDrawConfig.winner && (
+              <div className="bg-gradient-to-br from-amber-100 via-gold-50 to-amber-200 p-5 sm:p-6 rounded-3xl border-2 border-gold-400 shadow-xl space-y-4 animate-fadeIn relative overflow-hidden">
+                <div className="absolute top-0 right-0 transform translate-x-4 -translate-y-4 w-32 h-32 bg-gold-400/20 rounded-full blur-2xl pointer-events-none"></div>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-amber-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[#700b1d] text-gold-300 flex items-center justify-center shrink-0 shadow-md">
+                      <Trophy size={24} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold text-amber-900 uppercase tracking-widest bg-gold-200 px-2.5 py-0.5 rounded-full border border-gold-300">
+                        🏆 Lucky Draw Winner Declared
+                      </span>
+                      <h3 className="font-serif text-lg sm:text-xl font-bold text-brand-950 mt-0.5">
+                        {luckyDrawConfig.winner.name} — Golden Ticket #{luckyDrawConfig.winner.ticketNumber}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleClearWinner}
+                    className="px-3.5 py-1.5 bg-white/80 hover:bg-white text-stone-700 hover:text-rose-700 border border-stone-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    🔄 Re-roll / Reset Winner
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-white/90 p-4 rounded-2xl border border-amber-200 text-xs">
+                  <div>
+                    <span className="text-stone-500 text-[11px] block">Customer Contact</span>
+                    <strong className="text-stone-900 font-bold">{luckyDrawConfig.winner.phone}</strong>
+                    <span className="text-[10px] text-stone-500 block">{luckyDrawConfig.winner.city || 'Jaipur'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500 text-[11px] block">Prize Awarded</span>
+                    <strong className="text-brand-900 font-bold">{luckyDrawConfig.winner.prizeTitle}</strong>
+                  </div>
+                  <div>
+                    <span className="text-stone-500 text-[11px] block">Declared On</span>
+                    <strong className="text-stone-900 font-bold">{luckyDrawConfig.winner.declaredAt || 'Today'}</strong>
+                  </div>
+                  <div className="flex items-center justify-start sm:justify-end">
+                    <a
+                      href={`https://wa.me/91${luckyDrawConfig.winner.phone}?text=${encodeURIComponent(
+                        `Namaste ${luckyDrawConfig.winner.name} ji! 🌸\n\nHeartiest Congratulations! You have WON the *Radhika Kurti Collection Mega Lucky Draw* (Ticket #${luckyDrawConfig.winner.ticketNumber})!\n\nYour Prize: *${luckyDrawConfig.winner.prizeTitle}* 🎁\n\nPlease confirm your delivery address to dispatch your prize!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+                    >
+                      <MessageCircle size={15} />
+                      <span>Message on WhatsApp</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Rolling Lottery Animation Modal */}
+            {isPickingWinner && rollingCandidate && (
+              <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+                <div className="bg-gradient-to-b from-[#700b1d] to-[#3a040e] text-gold-100 p-8 rounded-3xl border-2 border-gold-400 max-w-md w-full text-center space-y-4 shadow-2xl animate-pulse">
+                  <div className="w-16 h-16 rounded-full bg-gold-400/20 border border-gold-400 flex items-center justify-center mx-auto text-gold-300">
+                    <Dice5 size={32} className="animate-spin" />
+                  </div>
+                  <h3 className="font-heading text-xl font-bold tracking-widest text-gold-200 uppercase">
+                    🎲 Selecting Random Winner...
+                  </h3>
+                  <div className="bg-stone-950/80 p-4 rounded-2xl border border-gold-500/40">
+                    <p className="text-xs text-gold-300 uppercase tracking-widest">Candidate Ticket</p>
+                    <p className="text-2xl font-mono font-extrabold text-white mt-1">{rollingCandidate.ticketNumber}</p>
+                    <p className="text-sm font-bold text-gold-200 mt-0.5">{rollingCandidate.name} ({rollingCandidate.city || 'Jaipur'})</p>
+                  </div>
+                  <p className="text-[11px] text-stone-300">Filtering contestants with minimum {luckyDrawConfig.minProductsRequired || 3} orders...</p>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Two Column Grid: Campaign Rules & Custom Prizes */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Column (5 cols): Campaign Settings & Rule Editor */}
+              <div className="lg:col-span-5 bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                  <h3 className="font-serif text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Settings size={18} className="text-amber-700" />
+                    <span>Contest Rules & Settings</span>
+                  </h3>
+                  <span className="text-[10px] text-stone-500 font-semibold bg-stone-100 px-2 py-0.5 rounded-md">
+                    Storefront Sync
+                  </span>
+                </div>
+
+                <form onSubmit={handleSaveLuckyDrawCampaign} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                      Contest Campaign Title <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={campaignFormData.title}
+                      onChange={(e) => setCampaignFormData({ ...campaignFormData, title: e.target.value })}
+                      placeholder="e.g. Festive Mega Royal Lucky Draw 🎁"
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl font-bold text-stone-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                      Headline Tagline / Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={campaignFormData.tagline}
+                      onChange={(e) => setCampaignFormData({ ...campaignFormData, tagline: e.target.value })}
+                      placeholder="e.g. Order minimum 3 Boutique Apparel Items to Enter Giveaway!"
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-800"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-amber-950 uppercase tracking-wider mb-1">
+                        Min. Products Required 🛍️
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        required
+                        value={campaignFormData.minProductsRequired}
+                        onChange={(e) => setCampaignFormData({ ...campaignFormData, minProductsRequired: Number(e.target.value) })}
+                        className="w-full px-3 py-2 bg-amber-50 border-2 border-amber-300 font-extrabold text-amber-950 rounded-xl text-sm"
+                      />
+                      <span className="text-[10px] text-amber-800 font-semibold mt-0.5 block">
+                        Default: 3 items minimum
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                        Draw Date
+                      </label>
+                      <input
+                        type="date"
+                        value={campaignFormData.announcementDate}
+                        onChange={(e) => setCampaignFormData({ ...campaignFormData, announcementDate: e.target.value })}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-800 font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                      Terms & Conditions / Guidelines
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={campaignFormData.terms}
+                      onChange={(e) => setCampaignFormData({ ...campaignFormData, terms: e.target.value })}
+                      placeholder="List participant guidelines..."
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-700 text-[11px]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="activeCheck"
+                      checked={campaignFormData.isActive}
+                      onChange={(e) => setCampaignFormData({ ...campaignFormData, isActive: e.target.checked })}
+                      className="w-4 h-4 rounded text-brand-900 cursor-pointer accent-[#700b1d]"
+                    />
+                    <label htmlFor="activeCheck" className="text-xs font-bold text-stone-800 cursor-pointer">
+                      Campaign is Active & Visible in Header
+                    </label>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 royal-maroon-bg hover:opacity-95 text-gold-100 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                  >
+                    <Check size={16} />
+                    <span>Save Campaign Rules</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Right Column (7 cols): Custom Prizes & Product Catalog */}
+              <div className="lg:col-span-7 bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                  <div>
+                    <h3 className="font-serif text-base font-bold text-stone-900 flex items-center gap-2">
+                      <Award size={18} className="text-gold-600" />
+                      <span>Custom Giveaway Prizes ({luckyDrawConfig.prizes?.length || 0})</span>
+                    </h3>
+                    <p className="text-[11px] text-stone-500">
+                      Add any boutique dress, saree, or luxury gift product of your choice
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddPrize}
+                    className="px-3.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    <span>Add Prize</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {(luckyDrawConfig.prizes || []).map((prize, idx) => (
+                    <div
+                      key={prize.id || idx}
+                      className="bg-[#fdfcf9] rounded-2xl border border-stone-200 p-3.5 flex gap-3 shadow-2xs relative group hover:border-gold-400 transition-all"
+                    >
+                      <div className="w-16 h-20 rounded-xl overflow-hidden border border-amber-300 bg-stone-100 shrink-0 shadow-xs">
+                        <img
+                          src={normalizeImageUrl(prize.image)}
+                          alt={prize.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80";
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                            Prize #{idx + 1}
+                          </span>
+                          <span className="text-xs font-extrabold text-brand-900">
+                            {prize.worth}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-bold text-stone-900 line-clamp-1">
+                          {prize.title}
+                        </h4>
+                        <p className="text-[10px] text-stone-500 line-clamp-2 leading-relaxed">
+                          {prize.description}
+                        </p>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditPrize(prize)}
+                            className="text-[11px] text-stone-600 hover:text-amber-800 font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 size={11} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePrize(prize.id, prize.title)}
+                            className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 size={11} /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {(!luckyDrawConfig.prizes || luckyDrawConfig.prizes.length === 0) && (
+                  <div className="p-8 text-center bg-stone-50 rounded-2xl border border-dashed border-stone-300">
+                    <Gift size={32} className="mx-auto text-stone-400 mb-2" />
+                    <p className="text-xs font-bold text-stone-700">No prizes configured yet</p>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddPrize}
+                      className="mt-2 text-xs font-bold text-amber-800 underline cursor-pointer"
+                    >
+                      Click here to add your first giveaway prize
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* 5. Registered Customer Accounts & Golden Tickets Directory */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+              
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-serif text-base font-bold text-stone-900 flex items-center gap-2">
+                      <Users size={18} className="text-brand-900" />
+                      <span>Registered Contestants & Golden Tickets</span>
+                    </h3>
+                    <span className="bg-amber-100 text-amber-900 text-xs font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300">
+                      {luckyDrawUsers.length} Registered
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    Live accounts created by customers with Mobile Number & Password. Minimum 3 product orders needed for eligibility.
+                  </p>
+                </div>
+
+                {/* Filter Chips & Search */}
+                <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+                  <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setDrawEligibilityFilter('All')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        drawEligibilityFilter === 'All' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500'
+                      }`}
+                    >
+                      All ({luckyDrawUsers.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDrawEligibilityFilter('Eligible')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        drawEligibilityFilter === 'Eligible' ? 'bg-emerald-600 text-white shadow-xs' : 'text-stone-500'
+                      }`}
+                    >
+                      ✅ Eligible ({luckyDrawUsers.filter(u => getUserDrawEligibility(u.phone, minRequiredForDraw).isEligible).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDrawEligibilityFilter('Ineligible')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        drawEligibilityFilter === 'Ineligible' ? 'bg-amber-600 text-white shadow-xs' : 'text-stone-500'
+                      }`}
+                    >
+                      ⏳ Incomplete ({luckyDrawUsers.filter(u => !getUserDrawEligibility(u.phone, minRequiredForDraw).isEligible).length})
+                    </button>
+                  </div>
+
+                  <div className="relative flex-1 md:w-56">
+                    <input
+                      type="text"
+                      placeholder="Search ticket, name, phone..."
+                      value={drawSearchQuery}
+                      onChange={(e) => setDrawSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-medium text-stone-800 focus:outline-none focus:border-brand-700"
+                    />
+                    <Search size={14} className="absolute left-2.5 top-2.5 text-stone-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Contestants Table */}
+              <div className="overflow-x-auto rounded-2xl border border-stone-200">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-stone-100 text-stone-700 uppercase text-[10px] tracking-wider font-extrabold border-b border-stone-200">
+                      <th className="p-3.5">Golden Ticket #</th>
+                      <th className="p-3.5">Customer / City</th>
+                      <th className="p-3.5">Mobile (Login ID) & Password</th>
+                      <th className="p-3.5">Ordered Items ({minRequiredForDraw} Req.)</th>
+                      <th className="p-3.5">Eligibility</th>
+                      <th className="p-3.5">Registered</th>
+                      <th className="p-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-200 bg-white">
+                    {filteredDrawUsers.map((user) => {
+                      const { count, isEligible, remainingToUnlock, ordersCount } = getUserDrawEligibility(user.phone, minRequiredForDraw);
+                      const isWinner = luckyDrawConfig.winner?.ticketNumber === user.ticketNumber;
+
+                      return (
+                        <tr key={user.id || user.phone} className={`hover:bg-amber-50/40 transition-colors ${isWinner ? 'bg-gold-50/80 font-bold' : ''}`}>
+                          <td className="p-3.5 whitespace-nowrap">
+                            <span className="font-mono font-black text-xs px-2.5 py-1 bg-stone-900 text-gold-300 rounded-lg border border-gold-400/40 shadow-2xs">
+                              {user.ticketNumber}
+                            </span>
+                            {isWinner && (
+                              <span className="ml-2 text-[10px] text-amber-800 font-extrabold bg-gold-200 px-2 py-0.5 rounded-full">
+                                🏆 Winner
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="p-3.5">
+                            <span className="font-bold text-stone-900 block">{user.name}</span>
+                            <span className="text-[10px] text-stone-500">{user.city || 'Jaipur'}</span>
+                          </td>
+
+                          <td className="p-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-stone-800 font-mono">{user.phone}</span>
+                            </div>
+                            <span className="text-[10px] text-stone-500 font-mono bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200 mt-0.5 inline-block">
+                              Key: {user.password || '••••'}
+                            </span>
+                          </td>
+
+                          <td className="p-3.5 whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-stone-900">
+                                  {count} / {minRequiredForDraw} Products
+                                </span>
+                                <span className="text-[10px] text-stone-400">({ordersCount} Orders)</span>
+                              </div>
+                              <div className="w-28 h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    isEligible ? 'bg-emerald-600' : 'bg-amber-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, (count / minRequiredForDraw) * 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-3.5 whitespace-nowrap">
+                            {isEligible ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 size={12} />
+                                <span>Eligible to Win</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                                <span>⏳ Need {remainingToUnlock} more</span>
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="p-3.5 whitespace-nowrap text-stone-500 text-[11px]">
+                            {user.registeredAt ? new Date(user.registeredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recent'}
+                          </td>
+
+                          <td className="p-3.5 whitespace-nowrap text-right space-x-1.5">
+                            <a
+                              href={`https://wa.me/91${user.phone}?text=${encodeURIComponent(
+                                `Namaste ${user.name} ji! 🌸\n\nYour Lucky Draw Ticket Number: *${user.ticketNumber}*\n\nStatus: ${
+                                  isEligible
+                                    ? '✅ You have ordered ' + count + ' products and are fully ELIGIBLE for the giveaway draw!'
+                                    : '⏳ You have ordered ' + count + ' products. Order ' + remainingToUnlock + ' more products to enter the draw!'
+                                }\n\nCheck live updates at: Radhika Kurti Collection`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg inline-flex items-center border border-emerald-200 transition-colors"
+                              title="Chat on WhatsApp"
+                            >
+                              <MessageCircle size={14} />
+                            </a>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeclareManualWinner(user, luckyDrawConfig.prizes?.[0]?.title)}
+                              className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer active:scale-95"
+                              title="Pick this user as winner"
+                            >
+                              🏆 Set Winner
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteContestant(user.id)}
+                              className="p-1.5 text-stone-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Remove Contestant"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {filteredDrawUsers.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-stone-500">
+                          <Gift size={28} className="mx-auto text-stone-400 mb-1" />
+                          <p className="font-bold">No contestant tickets found matching filter.</p>
+                          <p className="text-[11px] text-stone-400">Customers who create an account in the Lucky Draw modal on the storefront will appear here.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
       </main>
 
       {/* 3. DEDICATED FOOTER */}
@@ -4066,6 +4882,169 @@ export const AdminPage = ({
           settings={storeSettings}
           products={products}
         />
+      )}
+
+      {/* ADD / EDIT GIVEAWAY PRIZE MODAL */}
+      {isPrizeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-stone-950/80 backdrop-blur-md animate-fadeIn">
+          <div 
+            className="relative w-full max-w-md bg-[#fdfcf9] rounded-3xl shadow-2xl border border-gold-400 p-6 overflow-hidden my-auto max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-200 pb-3 mb-4">
+              <h3 className="font-serif text-base font-bold text-brand-950 flex items-center gap-2">
+                <Gift size={18} className="text-amber-700" />
+                <span>{editingPrizeId ? 'Edit Giveaway Prize' : 'Add Custom Giveaway Prize Product'}</span>
+              </h3>
+              <button
+                onClick={() => setIsPrizeModalOpen(false)}
+                className="p-1 rounded-full text-stone-400 hover:text-stone-700 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePrize} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Prize Title / Product Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Heritage Pure Katan Banarasi Silk Saree"
+                  value={prizeFormData.title}
+                  onChange={(e) => setPrizeFormData({ ...prizeFormData, title: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl font-bold text-stone-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Estimated Worth / Price Tag (₹)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. ₹4,999"
+                  value={prizeFormData.worth}
+                  onChange={(e) => setPrizeFormData({ ...prizeFormData, worth: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl font-bold text-brand-950"
+                />
+              </div>
+
+              {/* Prize Photo & Uploader */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-20 rounded-xl overflow-hidden border border-gold-400 bg-white flex items-center justify-center text-xs text-stone-400 shadow-sm shrink-0">
+                    {prizeFormData.image ? (
+                      <img
+                        src={normalizeImageUrl(prizeFormData.image)}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80";
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center p-1">
+                        <Gift size={20} className="mx-auto text-amber-600 mb-1" />
+                        <span className="text-[9px]">No Photo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[11px] font-bold text-stone-800 uppercase tracking-wider block">
+                      Prize Photo
+                    </span>
+                    <p className="text-[10px] text-stone-500">
+                      Paste direct link, Google Drive link, or choose from device.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Click & press Ctrl + V (or paste URL / Drive link)"
+                    value={prizeFormData.image}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPrizeFormData({ ...prizeFormData, image: normalizeImageUrl(val) });
+                    }}
+                    onPaste={async (e) => {
+                      const clipboardData = e.clipboardData;
+                      if (!clipboardData) return;
+                      const items = clipboardData.items;
+                      if (items) {
+                        for (let i = 0; i < items.length; i++) {
+                          if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+                            const file = items[i].getAsFile();
+                            if (file) {
+                              e.preventDefault();
+                              const res = await compressImageFile(file);
+                              if (res) setPrizeFormData(prev => ({ ...prev, image: res }));
+                              return;
+                            }
+                          }
+                        }
+                      }
+                      const txt = clipboardData.getData('text');
+                      if (txt && (txt.startsWith('http') || txt.startsWith('data:image/') || isGoogleDriveUrl(txt))) {
+                        e.preventDefault();
+                        let clean = normalizeImageUrl(txt);
+                        if (clean.startsWith('data:image/')) clean = await compressDataUrl(clean);
+                        setPrizeFormData(prev => ({ ...prev, image: clean }));
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-stone-500 font-semibold block mb-0.5">Or Choose Image from Device:</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePrizeFileUpload}
+                    className="w-full text-xs text-stone-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-stone-900 file:text-gold-200 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Prize Description & Highlights
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Handcrafted festive designer wear with free shipping."
+                  value={prizeFormData.description}
+                  onChange={(e) => setPrizeFormData({ ...prizeFormData, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPrizeModalOpen(false)}
+                  className="w-1/3 py-2.5 bg-stone-100 text-stone-700 font-bold rounded-xl cursor-pointer hover:bg-stone-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-2.5 royal-maroon-bg text-gold-100 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Check size={16} />
+                  <span>{editingPrizeId ? 'Update Prize' : 'Save Prize'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* SQL SCHEMA MODAL FOR SUPABASE */}
