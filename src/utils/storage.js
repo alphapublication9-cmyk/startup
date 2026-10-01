@@ -4,13 +4,13 @@ import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../data/initialCoupons';
 import { idbGet, idbSet } from './indexedDBStorage';
 
 
-const PRODUCTS_KEY = 'aura_kurti_products_v5';
-const CATEGORIES_KEY = 'aura_kurti_categories_v5';
-const SETTINGS_KEY = 'aura_kurti_settings_v5';
-const ORDERS_KEY = 'aura_kurti_orders_v3';
+const PRODUCTS_KEY = 'aura_kurti_products_v6';
+const CATEGORIES_KEY = 'aura_kurti_categories_v6';
+const SETTINGS_KEY = 'aura_kurti_settings_v6';
+const ORDERS_KEY = 'aura_kurti_orders_v4';
 const ADMIN_AUTH_KEY = 'aura_kurti_admin_auth_v3';
-const COUPONS_KEY = 'aura_kurti_coupons_v3';
-const REVIEWS_KEY = 'aura_kurti_reviews_v3';
+const COUPONS_KEY = 'aura_kurti_coupons_v4';
+const REVIEWS_KEY = 'aura_kurti_reviews_v4';
 const WISHLIST_KEY = 'aura_kurti_wishlist_v3';
 
 // Synchronous initial getters (fallback to localStorage or Initial Data)
