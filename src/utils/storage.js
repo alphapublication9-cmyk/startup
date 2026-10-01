@@ -32,10 +32,21 @@ export const saveStoredCategories = (categories) => {
   idbSet(CATEGORIES_KEY, categories);
 };
 
+let inMemoryProductsCache = null;
+
 export const getStoredProducts = () => {
+  if (inMemoryProductsCache && inMemoryProductsCache.length > 0) {
+    return inMemoryProductsCache;
+  }
   try {
     const data = localStorage.getItem(PRODUCTS_KEY);
-    if (data) return JSON.parse(data);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryProductsCache = parsed;
+        return parsed;
+      }
+    }
   } catch (e) {
     console.error("Failed to load products from storage", e);
   }
@@ -43,12 +54,28 @@ export const getStoredProducts = () => {
 };
 
 export const saveStoredProducts = (products) => {
+  if (!Array.isArray(products)) return;
+  inMemoryProductsCache = products;
+
+  // 1. Always save full data to IndexedDB
+  idbSet(PRODUCTS_KEY, products);
+
+  // 2. Try saving to localStorage
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   } catch (e) {
-    console.warn("LocalStorage quota exceeded, saving to IndexedDB instead", e);
+    console.warn("LocalStorage quota exceeded, full data preserved in IndexedDB", e);
+    try {
+      const lightCopy = products.map(p => ({
+        ...p,
+        image: p.image && p.image.length > 50000 ? p.image.slice(0, 50000) : p.image,
+        images: Array.isArray(p.images) ? p.images.map(img => img && img.length > 50000 ? img.slice(0, 50000) : img) : [p.image]
+      }));
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(lightCopy));
+    } catch {
+      // Ignored since IndexedDB holds the primary source of truth
+    }
   }
-  idbSet(PRODUCTS_KEY, products);
 };
 
 export const getStoredSettings = () => {

@@ -19,7 +19,8 @@ import {
  */
 export const fetchCloudProducts = async () => {
   const supabase = getSupabase();
-  if (!supabase) return getStoredProducts();
+  const localProducts = getStoredProducts();
+  if (!supabase) return localProducts;
 
   try {
     const { data, error } = await supabase
@@ -29,19 +30,19 @@ export const fetchCloudProducts = async () => {
 
     if (error || !data) {
       console.warn("Supabase products fetch failed, falling back to local storage:", error?.message);
-      return getStoredProducts();
+      return localProducts;
     }
 
     if (data.length > 0) {
       // Map columns from snake_case to camelCase
-      const mapped = data.map(item => ({
+      const cloudMapped = data.map(item => ({
         id: item.id,
         name: item.name,
         category: item.category,
         price: Number(item.price),
         originalPrice: item.original_price ? Number(item.original_price) : undefined,
         image: item.image,
-        images: Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []),
+        images: Array.isArray(item.images) && item.images.length > 0 ? item.images : (item.image ? [item.image] : []),
         sizes: Array.isArray(item.sizes) ? item.sizes : ['S', 'M', 'L', 'XL'],
         fabric: item.fabric || '',
         color: item.color || '',
@@ -53,19 +54,56 @@ export const fetchCloudProducts = async () => {
         description: item.description || ''
       }));
 
-      // Cache locally for offline/fast boot
-      saveStoredProducts(mapped);
-      return mapped;
+      // Smart merge: preserve user's local custom uploaded photos if cloud has stale/empty/placeholder photos
+      const localMap = new Map((localProducts || []).map(p => [String(p.id), p]));
+      let needsCloudUpdate = false;
+
+      const merged = cloudMapped.map(cp => {
+        const lp = localMap.get(String(cp.id));
+        if (!lp) return cp;
+
+        const hasLocalCustomImg = lp.image && (lp.image.startsWith('data:image/') || lp.images?.some(img => img && img.startsWith('data:image/')));
+        const cloudHasDataImg = cp.image && (cp.image.startsWith('data:image/') || cp.images?.some(img => img && img.startsWith('data:image/')));
+
+        if (hasLocalCustomImg && !cloudHasDataImg) {
+          needsCloudUpdate = true;
+          return {
+            ...cp,
+            image: lp.image,
+            images: lp.images && lp.images.length > 0 ? lp.images : [lp.image]
+          };
+        }
+        return cp;
+      });
+
+      // Keep local products that aren't in the cloud yet
+      const cloudIdSet = new Set(cloudMapped.map(cp => String(cp.id)));
+      (localProducts || []).forEach(lp => {
+        if (!cloudIdSet.has(String(lp.id))) {
+          merged.push(lp);
+          needsCloudUpdate = true;
+        }
+      });
+
+      // Save the merged result locally
+      saveStoredProducts(merged);
+
+      // If local had newer images/products missing in cloud, sync back in background
+      if (needsCloudUpdate) {
+        syncCloudProducts(merged);
+      }
+
+      return merged;
     }
   } catch (err) {
     console.error("Cloud products load error:", err);
   }
 
-  return getStoredProducts();
+  return localProducts;
 };
 
 export const syncCloudProducts = async (products) => {
-  saveStoredProducts(products); // Always save locally first
+  saveStoredProducts(products); // Always save locally and to IndexedDB first
 
   const supabase = getSupabase();
   if (!supabase || !Array.isArray(products)) return;
@@ -78,8 +116,8 @@ export const syncCloudProducts = async (products) => {
       price: p.price,
       original_price: p.originalPrice || null,
       image: p.image,
-      images: p.images || [p.image],
-      sizes: p.sizes || ['S', 'M', 'L', 'XL'],
+      images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
+      sizes: Array.isArray(p.sizes) ? p.sizes : ['S', 'M', 'L', 'XL'],
       fabric: p.fabric || null,
       color: p.color || null,
       badge: p.badge || null,
@@ -90,12 +128,24 @@ export const syncCloudProducts = async (products) => {
       description: p.description || null
     }));
 
-    const { error } = await supabase
-      .from('products')
-      .upsert(rows, { onConflict: 'id' });
+    // Chunk upsert into batches of 4 products to avoid payload/timeout limits
+    const CHUNK_SIZE = 4;
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabase
+        .from('products')
+        .upsert(chunk, { onConflict: 'id' });
 
-    if (error) {
-      console.error("Failed to upsert products to Supabase:", error);
+      if (error) {
+        console.warn(`Supabase upsert chunk ${i}-${i + chunk.length} issue, falling back to row-by-row:`, error.message);
+        for (const singleRow of chunk) {
+          try {
+            await supabase.from('products').upsert([singleRow], { onConflict: 'id' });
+          } catch (rowErr) {
+            console.error("Failed to upsert single product:", singleRow.id, rowErr);
+          }
+        }
+      }
     }
   } catch (err) {
     console.error("Error syncing products to Supabase:", err);

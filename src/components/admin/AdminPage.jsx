@@ -60,7 +60,7 @@ import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialP
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
-import { compressImageFile } from '../../utils/imageCompressor';
+import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
 import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
@@ -428,8 +428,15 @@ export const AdminPage = ({
     }));
   };
 
-  const handleUpdateProductImage = (index, url) => {
-    const cleanUrl = normalizeImageUrl(url);
+  const handleUpdateProductImage = async (index, url) => {
+    let cleanUrl = normalizeImageUrl(url);
+    if (cleanUrl && cleanUrl.startsWith('data:image/')) {
+      try {
+        cleanUrl = await compressDataUrl(cleanUrl);
+      } catch (err) {
+        console.warn("Image compression fallback:", err);
+      }
+    }
     const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
     currentImgs[index] = cleanUrl;
     setFormData(prev => ({
@@ -495,13 +502,28 @@ export const AdminPage = ({
   };
 
   // Save Product (Add or Edit with Multi-Image Support)
-  const handleSaveProduct = (e) => {
+  const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
-    const cleanImages = (formData.images || [formData.image])
+    const rawImages = (formData.images || [formData.image])
       .map(img => typeof img === 'string' ? normalizeImageUrl(img.trim()) : '')
       .filter(Boolean);
+
+    // Compress any uncompressed data URLs to ensure lightweight storage
+    const cleanImages = await Promise.all(
+      rawImages.map(async (img) => {
+        if (img && img.startsWith('data:image/')) {
+          try {
+            return await compressDataUrl(img);
+          } catch {
+            return img;
+          }
+        }
+        return img;
+      })
+    );
+
     const primaryImg = cleanImages[0] || normalizeImageUrl(formData.image) || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80';
     const finalImages = cleanImages.length > 0 ? cleanImages : [primaryImg];
 
