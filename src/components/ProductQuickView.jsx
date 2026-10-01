@@ -57,7 +57,7 @@ export const ProductQuickView = ({
       setPincodeResult({
         valid: true,
         pincode: clean,
-        message: `⚡ Express Delivery by ${formatted} (2-3 Business Days) • Free Shipping & COD Available`
+        message: `⚡ Express Delivery by ${formatted} (2-3 Days) • ❌ COD Not Available at this location (Only 100% Safe UPI / Online Prepaid Accepted with Free Delivery)`
       });
     } else {
       setPincodeResult({
@@ -468,9 +468,11 @@ export const ProductQuickView = ({
               <div className="flex items-center justify-between text-xs font-bold text-stone-800">
                 <span className="flex items-center gap-1.5">
                   <MapPin size={14} className="text-[#700b1d]" />
-                  <span>Check Express Delivery & COD:</span>
+                  <span>Check Express Delivery & Pincode:</span>
                 </span>
-                <span className="text-[10px] text-stone-500 font-normal">All India Pincodes</span>
+                <span className="text-[10px] text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                  Prepaid Only • No COD
+                </span>
               </div>
 
               <form onSubmit={handleCheckPincode} className="flex gap-2">
