@@ -54,7 +54,8 @@ import {
   Zap,
   Timer,
   Clock,
-  Flame
+  Flame,
+  Upload
 } from 'lucide-react';
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';

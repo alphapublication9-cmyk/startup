@@ -60,20 +60,24 @@ export const saveStoredProducts = (products) => {
   // 1. Always save full data to IndexedDB
   idbSet(PRODUCTS_KEY, products);
 
-  // 2. Try saving to localStorage
+  // 2. Try saving to localStorage safely without truncating base64 into invalid URLs
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   } catch (e) {
-    console.warn("LocalStorage quota exceeded, full data preserved in IndexedDB", e);
+    console.warn("LocalStorage quota exceeded, full data preserved in IndexedDB & Memory", e);
     try {
-      const lightCopy = products.map(p => ({
-        ...p,
-        image: p.image && p.image.length > 50000 ? p.image.slice(0, 50000) : p.image,
-        images: Array.isArray(p.images) ? p.images.map(img => img && img.length > 50000 ? img.slice(0, 50000) : img) : [p.image]
-      }));
+      // Create a lightweight version that doesn't corrupt base64
+      const lightCopy = products.map(p => {
+        const isHugeBase64 = p.image && p.image.startsWith('data:') && p.image.length > 50000;
+        return {
+          ...p,
+          image: isHugeBase64 ? 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80' : p.image,
+          images: Array.isArray(p.images) ? p.images.map(img => (img && img.startsWith('data:') && img.length > 50000) ? 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80' : img) : [p.image]
+        };
+      });
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify(lightCopy));
     } catch {
-      // Ignored since IndexedDB holds the primary source of truth
+      // IndexedDB & in-memory cache remain the primary source of truth
     }
   }
 };
