@@ -67,7 +67,7 @@ export const buildOrderMessage = ({
 • Delivery Address: ${customer.address || 'Not provided'}
 • City/State: ${customer.city || ''} ${customer.state || ''}
 • Pincode: ${customer.pincode || 'Not provided'}
-${customer.paymentMethod ? `• Payment Mode: ${customer.paymentMethod}\n` : ''}${customer.notes ? `• Special Notes: ${customer.notes}\n` : ''}━━━━━━━━━━━━━━━━━━━━
+${customer.notes ? `• Special Notes: ${customer.notes}\n` : ''}━━━━━━━━━━━━━━━━━━━━
 🛍️ *ITEMS IN CART (${totalQty} Items)*
 
 ${itemsListText}

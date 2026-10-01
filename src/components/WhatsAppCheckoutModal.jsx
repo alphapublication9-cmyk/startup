@@ -77,7 +77,7 @@ export const WhatsAppCheckoutModal = ({
     city: '',
     state: '',
     pincode: '',
-    paymentMethod: 'Cash On Delivery (COD)',
+    paymentMethod: 'Prepaid Online (UPI / GPay / PhonePe / QR Code)',
     notes: ''
   });
 
@@ -228,7 +228,7 @@ export const WhatsAppCheckoutModal = ({
 
             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 max-w-md mx-auto text-xs text-stone-700 space-y-1">
               <p className="font-bold text-amber-900">Order Reference: {customer.name}</p>
-              <p>Total Bill: <strong>₹{grandTotal.toLocaleString('en-IN')}</strong> ({customer.paymentMethod})</p>
+              <p>Total Bill: <strong>₹{grandTotal.toLocaleString('en-IN')}</strong></p>
               <p>Delivery To: {customer.address}, {customer.pincode}</p>
             </div>
 
@@ -439,8 +439,24 @@ export const WhatsAppCheckoutModal = ({
               </div>
             </div>
 
+            {/* Payment Mode & COD Notice */}
+            <div className="p-3.5 bg-gradient-to-br from-amber-50 to-stone-50 rounded-2xl border border-amber-300 shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between font-bold text-stone-900 text-xs">
+                <span className="flex items-center gap-1.5 text-amber-950">
+                  <ShieldCheck size={16} className="text-emerald-700" />
+                  <span>Payment Mode: 100% Safe UPI / Prepaid</span>
+                </span>
+                <span className="text-[10px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                  ❌ COD Not Available
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-600 leading-relaxed">
+                Cash on Delivery (COD) is not available at this location. We accept all UPI Apps (Google Pay, PhonePe, Paytm, BHIM, QR Code) & Bank Transfer with free express insured delivery.
+              </p>
+            </div>
+
             {/* Direct Channel Submit Button */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="submit"
                 disabled={isSubmitting}
