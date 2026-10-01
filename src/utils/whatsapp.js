@@ -23,11 +23,34 @@ export const cleanTelegramHandle = (handle = "") => {
 /**
  * Builds formatted text order message
  */
-export const buildOrderMessage = ({ customer, cartItems, totalPrice, settings, discount = 0 }) => {
+export const buildOrderMessage = ({ 
+  customer, 
+  cartItems, 
+  totalPrice, 
+  settings, 
+  discount = 0,
+  timerDiscount = 0,
+  couponDiscount = 0,
+  appliedPromo = ''
+}) => {
   const itemsListText = cartItems.map((item, idx) => {
     const itemTotal = item.price * item.quantity;
     return `${idx + 1}. 👗 *${item.name}*\n   • Size: ${item.selectedSize || 'Standard'}\n   • Qty: ${item.quantity}\n   • Price: ₹${item.price.toLocaleString('en-IN')} (₹${itemTotal.toLocaleString('en-IN')})\n   • Photo: ${item.image}`;
   }).join('\n\n');
+
+  // Build itemized discount lines
+  const discountLines = [];
+  if (timerDiscount > 0) {
+    discountLines.push(`• ⚡ 15-Min Rush Flash Discount: -₹${timerDiscount.toLocaleString('en-IN')}`);
+  }
+  if (couponDiscount > 0 && appliedPromo) {
+    discountLines.push(`• 🏷️ Promo Code (${appliedPromo}): -₹${couponDiscount.toLocaleString('en-IN')}`);
+  } else if (discount > 0 && !(timerDiscount > 0)) {
+    discountLines.push(`• Discount Applied: -₹${discount.toLocaleString('en-IN')}`);
+  }
+
+  const discountText = discountLines.length > 0 ? `${discountLines.join('\n')}\n` : '';
+  const effectiveSubtotal = (totalPrice + discount);
 
   return `✨ *NEW BOUTIQUE ORDER - ${settings.storeName || 'RADHIKA KURTI COLLECTION'}* ✨
 ━━━━━━━━━━━━━━━━━━━━
@@ -44,8 +67,8 @@ ${itemsListText}
 
 ━━━━━━━━━━━━━━━━━━━━
 💵 *BILL BREAKDOWN*
-• Item Subtotal: ₹${(totalPrice + discount).toLocaleString('en-IN')}
-${discount > 0 ? `• Discount Applied: -₹${discount.toLocaleString('en-IN')}\n` : ''}• Delivery Charges: Confirmed on WhatsApp (as per location)
+• Item Subtotal: ₹${effectiveSubtotal.toLocaleString('en-IN')}
+${discountText}• Delivery Charges: Confirmed on WhatsApp (as per location)
 ⭐ *ITEM TOTAL:* *₹${totalPrice.toLocaleString('en-IN')}*
 ━━━━━━━━━━━━━━━━━━━━
 💬 *Please confirm item availability, dispatch schedule & share tracking details! Thank you!* 🙏🌸`;
@@ -72,9 +95,27 @@ Please check size availability and let me know how to proceed with payment and d
 /**
  * Formats order details and generates a clean WhatsApp redirect URL
  */
-export const generateWhatsAppOrderUrl = ({ customer, cartItems, totalPrice, settings, discount = 0 }) => {
+export const generateWhatsAppOrderUrl = ({ 
+  customer, 
+  cartItems, 
+  totalPrice, 
+  settings, 
+  discount = 0,
+  timerDiscount = 0,
+  couponDiscount = 0,
+  appliedPromo = ''
+}) => {
   const cleanPhone = cleanWhatsAppPhone(settings.whatsappNumber);
-  const message = buildOrderMessage({ customer, cartItems, totalPrice, settings, discount });
+  const message = buildOrderMessage({ 
+    customer, 
+    cartItems, 
+    totalPrice, 
+    settings, 
+    discount,
+    timerDiscount,
+    couponDiscount,
+    appliedPromo 
+  });
   const encodedMessage = encodeURIComponent(message);
   return {
     url: `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`,
@@ -85,9 +126,27 @@ export const generateWhatsAppOrderUrl = ({ customer, cartItems, totalPrice, sett
 /**
  * Formats order details and generates a clean Telegram redirect URL
  */
-export const generateTelegramOrderUrl = ({ customer, cartItems, totalPrice, settings, discount = 0 }) => {
+export const generateTelegramOrderUrl = ({ 
+  customer, 
+  cartItems, 
+  totalPrice, 
+  settings, 
+  discount = 0,
+  timerDiscount = 0,
+  couponDiscount = 0,
+  appliedPromo = ''
+}) => {
   const cleanHandle = cleanTelegramHandle(settings.telegramUsername);
-  const message = buildOrderMessage({ customer, cartItems, totalPrice, settings, discount });
+  const message = buildOrderMessage({ 
+    customer, 
+    cartItems, 
+    totalPrice, 
+    settings, 
+    discount,
+    timerDiscount,
+    couponDiscount,
+    appliedPromo 
+  });
   const encodedMessage = encodeURIComponent(message);
   return {
     url: `https://t.me/${cleanHandle}?text=${encodedMessage}`,
@@ -116,12 +175,40 @@ export const generateSingleProductTelegramUrl = ({ product, selectedSize, settin
 /**
  * Dynamic Channel Order URL Generator based on chosen/configured channel
  */
-export const generateOrderUrlByChannel = ({ channel, customer, cartItems, totalPrice, settings, discount = 0 }) => {
+export const generateOrderUrlByChannel = ({ 
+  channel, 
+  customer, 
+  cartItems, 
+  totalPrice, 
+  settings, 
+  discount = 0,
+  timerDiscount = 0,
+  couponDiscount = 0,
+  appliedPromo = ''
+}) => {
   const targetChannel = channel || settings.orderChannel || 'whatsapp';
   if (targetChannel === 'telegram') {
-    return generateTelegramOrderUrl({ customer, cartItems, totalPrice, settings, discount });
+    return generateTelegramOrderUrl({ 
+      customer, 
+      cartItems, 
+      totalPrice, 
+      settings, 
+      discount,
+      timerDiscount,
+      couponDiscount,
+      appliedPromo 
+    });
   }
-  return generateWhatsAppOrderUrl({ customer, cartItems, totalPrice, settings, discount });
+  return generateWhatsAppOrderUrl({ 
+    customer, 
+    cartItems, 
+    totalPrice, 
+    settings, 
+    discount,
+    timerDiscount,
+    couponDiscount,
+    appliedPromo 
+  });
 };
 
 /**

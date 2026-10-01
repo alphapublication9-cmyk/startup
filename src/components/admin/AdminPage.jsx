@@ -51,7 +51,10 @@ import {
   Cloud,
   CheckCircle,
   Copy,
-  Zap
+  Zap,
+  Timer,
+  Clock,
+  Flame
 } from 'lucide-react';
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
@@ -2166,6 +2169,181 @@ export const AdminPage = ({
 
                 </div>
 
+              </div>
+
+              {/* ⚡ 15-MINUTE CART COUNTDOWN FLASH DISCOUNT SETTINGS */}
+              <div className="p-5 bg-gradient-to-br from-amber-50/90 via-rose-50/40 to-amber-50/80 border-2 border-amber-300 rounded-3xl space-y-4 shadow-sm">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-rose-600 text-white flex items-center justify-center shadow-xs">
+                      <Flame size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+                        <span>15-Minute Cart Countdown Rush Discount</span>
+                        <span className="text-[10px] bg-rose-600 text-white font-bold px-2 py-0.5 rounded-full shadow-xs">
+                          High Conversion
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-stone-600 mt-0.5">
+                        Increases sales velocity by displaying an urgent live timer discount when customer opens their Shopping Bag.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch Button */}
+                  <button
+                    type="button"
+                    onClick={() => setStoreSettings({ 
+                      ...storeSettings, 
+                      timerDiscountEnabled: storeSettings.timerDiscountEnabled === false ? true : false 
+                    })}
+                    className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                      storeSettings.timerDiscountEnabled !== false
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
+                    }`}
+                  >
+                    {storeSettings.timerDiscountEnabled !== false ? (
+                      <>
+                        <ToggleRight size={18} />
+                        <span>Active</span>
+                      </>
+                    ) : (
+                      <>
+                        <ToggleLeft size={18} />
+                        <span>Disabled</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {storeSettings.timerDiscountEnabled !== false && (
+                  <div className="space-y-4 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      
+                      {/* Timer Duration in Minutes */}
+                      <div className="p-3.5 bg-white border border-amber-200 rounded-2xl space-y-1 shadow-xs">
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1">
+                          <Clock size={13} className="text-amber-700" />
+                          <span>Timer Duration</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max="180"
+                            required
+                            value={storeSettings.timerMinutes ?? 15}
+                            onChange={(e) => setStoreSettings({ ...storeSettings, timerMinutes: Number(e.target.value) })}
+                            className="w-full px-3 py-2 bg-amber-50/30 border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-amber-600"
+                          />
+                          <span className="text-xs font-bold text-stone-500 shrink-0">Mins</span>
+                        </div>
+                        <p className="text-[10px] text-stone-500">Default: 15 minutes rush countdown</p>
+                      </div>
+
+                      {/* Discount Type */}
+                      <div className="p-3.5 bg-white border border-amber-200 rounded-2xl space-y-1 shadow-xs">
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1">
+                          <Percent size={13} className="text-amber-700" />
+                          <span>Discount Type</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setStoreSettings({ ...storeSettings, timerDiscountType: 'percentage' })}
+                            className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
+                              (storeSettings.timerDiscountType || 'percentage') === 'percentage'
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                            }`}
+                          >
+                            % Off
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStoreSettings({ ...storeSettings, timerDiscountType: 'fixed' })}
+                            className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
+                              storeSettings.timerDiscountType === 'fixed'
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                            }`}
+                          >
+                            Flat ₹ Off
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-stone-500">Percentage % or Flat ₹ cash discount</p>
+                      </div>
+
+                      {/* Discount Value */}
+                      <div className="p-3.5 bg-white border border-amber-200 rounded-2xl space-y-1 shadow-xs">
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1">
+                          <Tag size={13} className="text-amber-700" />
+                          <span>Discount Amount</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            required
+                            value={storeSettings.timerDiscountValue ?? 10}
+                            onChange={(e) => setStoreSettings({ ...storeSettings, timerDiscountValue: Number(e.target.value) })}
+                            className="w-full px-3 py-2 bg-amber-50/30 border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-amber-600"
+                          />
+                          <span className="text-xs font-bold text-stone-500 shrink-0">
+                            {(storeSettings.timerDiscountType || 'percentage') === 'percentage' ? '%' : '₹'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-stone-500">e.g. 10 for 10% or 200 for ₹200 OFF</p>
+                      </div>
+
+                    </div>
+
+                    {/* Custom Offer Headline */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                        Offer Headline Text (Displayed in Cart Drawer)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. ⚡ FLASH SALE: Complete your order in under 15 minutes to unlock EXTRA discount!"
+                        value={storeSettings.timerOfferHeading || ''}
+                        onChange={(e) => setStoreSettings({ ...storeSettings, timerOfferHeading: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-xs font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                      />
+                    </div>
+
+                    {/* Live Customer Cart Banner Preview */}
+                    <div className="p-3.5 bg-white/90 rounded-2xl border border-amber-200 space-y-1.5 shadow-xs">
+                      <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                        👀 Customer Cart Live Preview:
+                      </p>
+                      <div className="p-3 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border border-amber-300/90 rounded-xl flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-600 to-rose-600 text-white flex items-center justify-center text-xs">
+                            <Flame size={14} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-black text-amber-950 uppercase">⚡ {storeSettings.timerMinutes || 15}-Min Rush Deal!</span>
+                              <span className="text-[9px] bg-rose-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
+                                {(storeSettings.timerDiscountType || 'percentage') === 'percentage' ? `${storeSettings.timerDiscountValue ?? 10}% OFF` : `₹${storeSettings.timerDiscountValue ?? 10} OFF`}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-stone-600 line-clamp-1">
+                              {storeSettings.timerOfferHeading || `Order in under ${storeSettings.timerMinutes || 15} mins to save on your shopping bag!`}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-mono font-black text-brand-950 bg-white border border-amber-300 px-2 py-1 rounded-lg shrink-0 shadow-xs">
+                          {String(storeSettings.timerMinutes || 15).padStart(2, '0')}:00
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
               </div>
 
               {/* Announcement Bar Text */}

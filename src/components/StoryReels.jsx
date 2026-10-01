@@ -16,7 +16,7 @@ const STORY_ITEMS = [
     title: 'Silk Sarees',
     tag: 'HANDLOOM',
     category: 'Sarees',
-    image: 'https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=300&q=80',
+    image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=300&q=80',
     isLive: false
   },
   {
@@ -40,7 +40,7 @@ const STORY_ITEMS = [
     title: 'Co-ord Sets',
     tag: 'FUSION',
     category: 'Co-ord & Indo-Western',
-    image: 'https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=300&q=80',
+    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=300&q=80',
     isLive: false
   },
   {
@@ -79,6 +79,9 @@ export const StoryReels = ({ onSelectCategory }) => {
                     <img
                       src={story.image}
                       alt={story.title}
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=300&q=80';
+                      }}
                       className="w-full h-full object-cover object-top group-hover:scale-115 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors"></div>

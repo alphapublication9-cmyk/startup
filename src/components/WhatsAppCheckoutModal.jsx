@@ -22,6 +22,7 @@ export const WhatsAppCheckoutModal = ({
   cartItems, 
   appliedPromo, 
   settings = {}, 
+  checkoutPricing = null,
   onOrderSuccess 
 }) => {
   if (!isOpen || cartItems.length === 0) return null;
@@ -29,9 +30,11 @@ export const WhatsAppCheckoutModal = ({
   const defaultChannel = settings.orderChannel === 'telegram' ? 'telegram' : 'whatsapp';
   const [selectedChannel, setSelectedChannel] = useState(defaultChannel);
 
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const discountAmount = appliedPromo ? Math.round(subtotal * 0.10) : 0;
-  const grandTotal = Math.max(0, subtotal - discountAmount);
+  const subtotal = checkoutPricing?.subtotal ?? cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const discountAmount = checkoutPricing?.discountAmount ?? (appliedPromo ? Math.round(subtotal * 0.10) : 0);
+  const timerDiscount = checkoutPricing?.timerDiscount ?? 0;
+  const couponDiscount = checkoutPricing?.couponDiscount ?? (discountAmount - timerDiscount);
+  const grandTotal = checkoutPricing?.grandTotal ?? Math.max(0, subtotal - discountAmount);
 
   const isTelegramActive = settings.orderChannel === 'telegram' || (settings.orderChannel === 'both' && selectedChannel === 'telegram');
   const activeChannelName = isTelegramActive ? 'Telegram' : 'WhatsApp';
@@ -75,7 +78,10 @@ export const WhatsAppCheckoutModal = ({
       cartItems,
       totalPrice: grandTotal,
       settings,
-      discount: discountAmount
+      discount: discountAmount,
+      timerDiscount,
+      couponDiscount,
+      appliedPromo
     });
 
     // Save order record
@@ -86,6 +92,8 @@ export const WhatsAppCheckoutModal = ({
       items: cartItems,
       totalAmount: grandTotal,
       discount: discountAmount,
+      timerDiscount,
+      couponDiscount,
       promoCode: appliedPromo,
       channel: targetChannel,
       status: `${activeChannelName} Inquiry Sent`
@@ -191,15 +199,36 @@ export const WhatsAppCheckoutModal = ({
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
             
             {/* Quick Order Bill Strip */}
-            <div className="bg-gold-50/70 border border-gold-300/80 rounded-2xl p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingBag size={18} className="text-brand-900" />
-                <span className="text-xs font-bold text-stone-800">
-                  {cartItems.reduce((a, c) => a + c.quantity, 0)} Items in Order
-                </span>
+            <div className="bg-gold-50/70 border border-gold-300/80 rounded-2xl p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag size={18} className="text-brand-900" />
+                  <span className="text-xs font-bold text-stone-800">
+                    {cartItems.reduce((a, c) => a + c.quantity, 0)} Items in Order
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-stone-500">Subtotal: </span>
+                  <span className="text-xs font-bold text-stone-900">₹{subtotal.toLocaleString('en-IN')}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-stone-500 block">Total to Pay:</span>
+
+              {timerDiscount > 0 && (
+                <div className="flex justify-between items-center text-[11px] font-bold text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                  <span>⚡ 15-Min Rush Flash Discount</span>
+                  <span>-₹{timerDiscount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
+              {couponDiscount > 0 && (
+                <div className="flex justify-between items-center text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                  <span>🏷️ Promo Discount {appliedPromo ? `(${appliedPromo})` : ''}</span>
+                  <span>-₹{couponDiscount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-1.5 border-t border-gold-300/60">
+                <span className="text-xs font-extrabold text-stone-900">Total to Pay:</span>
                 <span className="text-base font-extrabold text-brand-950">
                   ₹{grandTotal.toLocaleString('en-IN')}
                 </span>

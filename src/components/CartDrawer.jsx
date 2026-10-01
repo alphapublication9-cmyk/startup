@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   X, 
@@ -16,7 +16,11 @@ import {
   Check, 
   ChevronRight,
   Percent,
-  Send
+  Send,
+  Timer,
+  Clock,
+  Flame,
+  Zap
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { normalizeImageUrl } from '../utils/imageUrl';
@@ -40,29 +44,125 @@ export const CartDrawer = ({
   const [promoSuccessMsg, setPromoSuccessMsg] = useState('');
   const [isGiftWrap, setIsGiftWrap] = useState(false);
 
+  // Flash Countdown Rush Discount Settings from Admin
+  const timerEnabled = settings.timerDiscountEnabled !== false;
+  const timerMinutes = Number(settings.timerMinutes || 15);
+  const timerDiscountType = settings.timerDiscountType || 'percentage'; // 'percentage' | 'fixed'
+  const timerDiscountValue = Number(settings.timerDiscountValue ?? 10);
+  const timerOfferHeading = settings.timerOfferHeading || `⚡ FLASH DEAL: Complete order in under ${timerMinutes} mins to get EXTRA ${timerDiscountType === 'percentage' ? `${timerDiscountValue}%` : `₹${timerDiscountValue}`} OFF!`;
+
+  // Countdown Timer State
+  const [timeLeft, setTimeLeft] = useState(() => {
+    try {
+      const storedDeadline = localStorage.getItem('aura_kurti_cart_timer_deadline');
+      if (storedDeadline) {
+        const diff = Math.floor((parseInt(storedDeadline, 10) - Date.now()) / 1000);
+        if (diff > 0) return diff;
+      }
+    } catch {}
+    return timerMinutes * 60;
+  });
+
+  const [isTimerExpired, setIsTimerExpired] = useState(() => {
+    try {
+      const storedDeadline = localStorage.getItem('aura_kurti_cart_timer_deadline');
+      if (storedDeadline) {
+        const diff = Math.floor((parseInt(storedDeadline, 10) - Date.now()) / 1000);
+        return diff <= 0;
+      }
+    } catch {}
+    return false;
+  });
+
+  // Initialize or maintain deadline when cart has items
+  useEffect(() => {
+    if (!timerEnabled || cartItems.length === 0) return;
+
+    try {
+      const storedDeadline = localStorage.getItem('aura_kurti_cart_timer_deadline');
+      const now = Date.now();
+      if (!storedDeadline) {
+        const newDeadline = now + (timerMinutes * 60 * 1000);
+        localStorage.setItem('aura_kurti_cart_timer_deadline', newDeadline.toString());
+        setTimeLeft(timerMinutes * 60);
+        setIsTimerExpired(false);
+      } else {
+        const diff = Math.floor((parseInt(storedDeadline, 10) - now) / 1000);
+        if (diff <= 0) {
+          setTimeLeft(0);
+          setIsTimerExpired(true);
+        } else {
+          setTimeLeft(diff);
+          setIsTimerExpired(false);
+        }
+      }
+    } catch {}
+  }, [timerEnabled, timerMinutes, cartItems.length]);
+
+  // Tick timer every second
+  useEffect(() => {
+    if (!timerEnabled || isTimerExpired || cartItems.length === 0) return;
+
+    const interval = setInterval(() => {
+      try {
+        const storedDeadline = localStorage.getItem('aura_kurti_cart_timer_deadline');
+        if (storedDeadline) {
+          const diff = Math.floor((parseInt(storedDeadline, 10) - Date.now()) / 1000);
+          if (diff <= 0) {
+            setTimeLeft(0);
+            setIsTimerExpired(true);
+            clearInterval(interval);
+          } else {
+            setTimeLeft(diff);
+          }
+        }
+      } catch {}
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerEnabled, isTimerExpired, cartItems.length]);
+
   const isTelegram = settings.orderChannel === 'telegram';
   const channelLabel = isTelegram ? 'Telegram' : (settings.orderChannel === 'both' ? 'Direct 1-Click' : 'WhatsApp');
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   
-  // Calculate discount based on active coupons
-  let discountAmount = 0;
+  // 1. Calculate Coupon Discount based on active promo code
+  let couponDiscount = 0;
   if (appliedPromo) {
     const coupon = coupons.find(c => c.code.toUpperCase() === appliedPromo.toUpperCase());
     if (coupon) {
       if (coupon.discountType === 'percentage') {
-        discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
+        couponDiscount = Math.round((subtotal * coupon.discountValue) / 100);
       } else {
-        discountAmount = Math.min(subtotal, coupon.discountValue);
+        couponDiscount = Math.min(subtotal, coupon.discountValue);
       }
-    } else if (appliedPromo === 'ROYAL10') {
-      discountAmount = Math.round(subtotal * 0.10);
+    } else if (appliedPromo === 'ROYAL10' || appliedPromo === 'FESTIVE10') {
+      couponDiscount = Math.round(subtotal * 0.10);
     }
   }
 
+  // 2. Calculate Flash Countdown Rush Discount
+  let timerDiscount = 0;
+  const isFlashOfferActive = timerEnabled && !isTimerExpired && cartItems.length > 0;
+  if (isFlashOfferActive) {
+    if (timerDiscountType === 'percentage') {
+      timerDiscount = Math.round((subtotal * timerDiscountValue) / 100);
+    } else {
+      timerDiscount = Math.min(subtotal, timerDiscountValue);
+    }
+  }
+
+  const totalDiscount = couponDiscount + timerDiscount;
   const giftWrapFee = isGiftWrap ? 49 : 0;
   const shippingFee = 0; // Confirmed on WhatsApp
-  const grandTotal = Math.max(0, subtotal - discountAmount + giftWrapFee);
+  const grandTotal = Math.max(0, subtotal - totalDiscount + giftWrapFee);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const triggerConfetti = () => {
     try {
@@ -178,6 +278,71 @@ export const CartDrawer = ({
               </div>
             ) : (
               <>
+                {/* ⚡ 15-MINUTE SALES COUNTDOWN RUSH DISCOUNT BANNER */}
+                {timerEnabled && (
+                  <div className={`p-3.5 rounded-2xl border transition-all ${
+                    isTimerExpired
+                      ? 'bg-stone-100/90 border-stone-300 text-stone-700'
+                      : 'bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-amber-300/90 shadow-xs'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2.5">
+                      <div className="flex items-start sm:items-center gap-2.5 flex-1 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                          isTimerExpired 
+                            ? 'bg-stone-300 text-stone-600' 
+                            : 'bg-gradient-to-tr from-amber-600 to-rose-600 text-white animate-pulse'
+                        }`}>
+                          {isTimerExpired ? <Clock size={18} /> : <Flame size={18} />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                              {isTimerExpired ? '⏳ Flash Offer Ended' : '⚡ 15-Min Rush Deal!'}
+                            </span>
+                            {!isTimerExpired && (
+                              <span className="text-[10px] bg-rose-600 text-white font-extrabold px-2 py-0.5 rounded-full shadow-xs">
+                                {timerDiscountType === 'percentage' ? `${timerDiscountValue}% OFF` : `₹${timerDiscountValue} OFF`}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-stone-600 font-medium line-clamp-2 mt-0.5 leading-tight">
+                            {isTimerExpired
+                              ? 'Rush discount expired. Complete order now before selected sizes run out!'
+                              : (settings.timerOfferHeading || `Order in under ${timerMinutes} mins to save ₹${timerDiscount.toLocaleString('en-IN')} on your shopping bag!`)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Digital Countdown Timer Display */}
+                      <div className="text-right shrink-0">
+                        {!isTimerExpired ? (
+                          <div className="inline-flex items-center gap-1.5 font-mono font-black text-xs sm:text-sm text-brand-950 bg-white/95 border border-amber-300 px-2.5 py-1.5 rounded-xl shadow-xs">
+                            <Clock size={13} className="text-rose-600 animate-spin" style={{ animationDuration: '4s' }} />
+                            <span>{formatTimer(timeLeft)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-stone-500 font-mono font-bold bg-stone-200/80 px-2 py-1 rounded-lg">
+                            00:00
+                          </span>
+                        )}
+                        <p className="text-[9px] text-amber-900/80 font-bold mt-0.5">
+                          {isTimerExpired ? 'Offer Expired' : 'Rush Countdown'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Countdown Progress Bar */}
+                    {!isTimerExpired && (
+                      <div className="w-full bg-amber-200/70 h-1.5 rounded-full overflow-hidden mt-2.5">
+                        <div 
+                          className="h-full bg-gradient-to-r from-amber-500 to-rose-600 transition-all duration-1000 ease-linear rounded-full"
+                          style={{ width: `${Math.max(0, Math.min(100, (timeLeft / (timerMinutes * 60)) * 100))}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Cart Items */}
                 <div className="space-y-3">
                   {cartItems.map((item) => (
@@ -285,7 +450,7 @@ export const CartDrawer = ({
                     <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-800 font-bold">
                       <span className="flex items-center gap-1.5">
                         <Sparkles size={14} className="text-emerald-600" />
-                        <span>Code <strong>{appliedPromo}</strong> Applied (-₹{discountAmount.toLocaleString('en-IN')})</span>
+                        <span>Code <strong>{appliedPromo}</strong> Applied (-₹{couponDiscount.toLocaleString('en-IN')})</span>
                       </span>
                       <Check size={16} className="text-emerald-600" />
                     </div>
@@ -350,10 +515,22 @@ export const CartDrawer = ({
                   <span className="font-semibold text-stone-900">₹{subtotal.toLocaleString('en-IN')}</span>
                 </div>
 
-                {discountAmount > 0 && (
+                {/* ⚡ 15-Minute Rush Discount Line */}
+                {timerDiscount > 0 && (
+                  <div className="flex justify-between text-amber-900 font-extrabold bg-gradient-to-r from-amber-50 to-rose-50 px-2 py-1 rounded-lg border border-amber-200/80">
+                    <span className="flex items-center gap-1">
+                      <Flame size={13} className="text-rose-600" />
+                      <span>15-Min Rush Deal ({timerDiscountType === 'percentage' ? `${timerDiscountValue}% OFF` : `₹${timerDiscountValue} OFF`})</span>
+                    </span>
+                    <span>-₹{timerDiscount.toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+
+                {/* Coupon Discount Line */}
+                {couponDiscount > 0 && (
                   <div className="flex justify-between text-emerald-800 font-bold">
-                    <span>Coupon Discount</span>
-                    <span>-₹{discountAmount.toLocaleString('en-IN')}</span>
+                    <span>Coupon Discount {appliedPromo ? `(${appliedPromo})` : ''}</span>
+                    <span>-₹{couponDiscount.toLocaleString('en-IN')}</span>
                   </div>
                 )}
 
@@ -388,7 +565,11 @@ export const CartDrawer = ({
                 onClick={() => {
                   onClose();
                   onProceedToCheckout({
-                    discountAmount,
+                    subtotal,
+                    discountAmount: totalDiscount,
+                    couponDiscount,
+                    timerDiscount,
+                    appliedPromo,
                     giftWrapFee,
                     shippingFee,
                     grandTotal
@@ -423,3 +604,4 @@ export const CartDrawer = ({
     </div>
   );
 };
+

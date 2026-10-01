@@ -15,5 +15,11 @@ export const INITIAL_SETTINGS = {
   adminUser: "admin420",
   adminPass: "Radhika@420",
   invoicePrefix: "RKC/2026/",
-  invoiceTerms: "1. 7-Day Hassle-Free Size Exchange on intact tags.\n2. Dry Clean recommended for all silk, zari, and embroidered apparel.\n3. All disputes subject to Jaipur, Rajasthan jurisdiction."
+  invoiceTerms: "1. 7-Day Hassle-Free Size Exchange on intact tags.\n2. Dry Clean recommended for all silk, zari, and embroidered apparel.\n3. All disputes subject to Jaipur, Rajasthan jurisdiction.",
+  // ⚡ 15-Minute Sales Countdown Flash Discount Settings (Editable from Admin)
+  timerDiscountEnabled: true,
+  timerMinutes: 15,
+  timerDiscountType: "percentage", // 'percentage' | 'fixed'
+  timerDiscountValue: 10, // 10% or fixed ₹ discount
+  timerOfferHeading: "⚡ FLASH SALE: Complete your order in under 15 minutes to unlock EXTRA discount!"
 };

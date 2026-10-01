@@ -21,7 +21,7 @@ export const DEFAULT_CATEGORIES = [
     "id": "cat-2",
     "name": "Sarees",
     "icon": "🥻",
-    "image": "https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=600&q=80",
+    "image": "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=600&q=80",
     "offer": null,
     "description": "Banarasi, Kanjivaram, Georgette & Organza Sarees"
   },
@@ -45,7 +45,7 @@ export const DEFAULT_CATEGORIES = [
     "id": "cat-5",
     "name": "Co-ord & Indo-Western",
     "icon": "💃",
-    "image": "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=600&q=80",
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80",
     "offer": null,
     "description": "Trendy Crop Tops, Peplum Sets & Fusion Wear"
   },
@@ -327,9 +327,9 @@ export const INITIAL_PRODUCTS = [
     "category": "Dupattas & Stoles",
     "price": 1199.0,
     "originalPrice": 2399.0,
-    "image": "https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=800&q=80",
+    "image": "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80",
     "images": [
-      "https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80"
     ],
     "sizes": [
       "2.4 Meters Length"
@@ -815,9 +815,9 @@ export const INITIAL_PRODUCTS = [
     "category": "Sarees",
     "price": 2999.0,
     "originalPrice": 5999.0,
-    "image": "https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=800&q=80",
+    "image": "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80",
     "images": [
-      "https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80"
     ],
     "sizes": [
       "Free Size (5.5m + 0.8m Blouse)"
@@ -881,9 +881,9 @@ export const INITIAL_PRODUCTS = [
     "category": "Sarees",
     "price": 1199.0,
     "originalPrice": 2299.0,
-    "image": "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80",
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
     "images": [
-      "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
     ],
     "sizes": [
       "Free Size"
@@ -976,9 +976,9 @@ export const INITIAL_PRODUCTS = [
     "category": "Western Dresses",
     "price": 1399.0,
     "originalPrice": 2699.0,
-    "image": "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80",
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
     "images": [
-      "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
     ],
     "sizes": [
       "S",
@@ -1028,9 +1028,9 @@ export const INITIAL_PRODUCTS = [
     "category": "Co-ord & Indo-Western",
     "price": 1799.0,
     "originalPrice": 3299.0,
-    "image": "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80",
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
     "images": [
-      "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
     ],
     "sizes": [
       "S",
@@ -1104,9 +1104,9 @@ export const INITIAL_PRODUCTS = [
     "category": "Lehenga Choli",
     "price": 3899.0,
     "originalPrice": 7599.0,
-    "image": "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80",
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
     "images": [
-      "https://images.unsplash.com/photo-1596783049554-380c8f615f10?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
     ],
     "sizes": [
       "Semi-Stitched"

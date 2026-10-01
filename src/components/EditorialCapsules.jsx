@@ -7,7 +7,7 @@ export const EditorialCapsules = ({ onSelectCategory }) => {
     {
       id: 'capsule-1',
       category: 'Sarees',
-      image: 'https://images.unsplash.com/photo-1610030469668-93510cb2866c?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80',
       tag: 'TIMELESS CLASSICS',
       title: 'The Royal Silk Edit',
       desc: 'Pure Katan, Banarasi & Organza handloom sarees woven with pure metallic zari threads.',

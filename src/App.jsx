@@ -104,6 +104,7 @@ export function App() {
   // Modals & Drawers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutPricing, setCheckoutPricing] = useState(null);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
 
   const catalogRef = useRef(null);
@@ -578,6 +579,7 @@ export function App() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onProceedToCheckout={(pricing) => {
+          setCheckoutPricing(pricing);
           setIsCartOpen(false);
           setIsCheckoutOpen(true);
         }}
@@ -594,9 +596,13 @@ export function App() {
         cartItems={cartItems}
         appliedPromo={appliedPromo}
         settings={settings}
+        checkoutPricing={checkoutPricing}
         onOrderSuccess={() => {
           setOrders(getStoredOrders());
           handleClearCart();
+          try {
+            localStorage.removeItem('aura_kurti_cart_timer_deadline');
+          } catch {}
         }}
       />
 
