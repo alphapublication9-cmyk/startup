@@ -1,7 +1,8 @@
 import { INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../data/initialProducts';
-import { INITIAL_SETTINGS } from '../data/initialSettings';
+import { INITIAL_SETTINGS, applyEnvSettingsOverrides } from '../data/initialSettings';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../data/initialCoupons';
 import { idbGet, idbSet } from './indexedDBStorage';
+
 
 const PRODUCTS_KEY = 'aura_kurti_products_v5';
 const CATEGORIES_KEY = 'aura_kurti_categories_v5';
@@ -85,7 +86,7 @@ export const saveStoredProducts = (products) => {
 export const getStoredSettings = () => {
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
-    if (data) return JSON.parse(data);
+    if (data) return applyEnvSettingsOverrides(JSON.parse(data));
   } catch (e) {
     console.error("Failed to load settings", e);
   }
@@ -221,7 +222,7 @@ export const loadAllFromIndexedDB = async () => {
     return {
       products: idbProducts,
       categories: idbCategories,
-      settings: idbSettings,
+      settings: idbSettings ? applyEnvSettingsOverrides(idbSettings) : idbSettings,
       orders: idbOrders,
       coupons: idbCoupons,
       reviews: idbReviews

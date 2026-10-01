@@ -13,6 +13,8 @@ import {
   getStoredOrders,
   saveNewOrder as saveLocalOrder
 } from './storage';
+import { applyEnvSettingsOverrides } from '../data/initialSettings';
+
 
 /**
  * 1. PRODUCTS
@@ -272,8 +274,9 @@ export const fetchCloudSettings = async () => {
       .single();
 
     if (!error && data && data.data) {
-      saveStoredSettings(data.data);
-      return data.data;
+      const mergedSettings = applyEnvSettingsOverrides(data.data);
+      saveStoredSettings(mergedSettings);
+      return mergedSettings;
     }
   } catch (err) {
     console.error("Cloud settings load error:", err);
