@@ -110,7 +110,7 @@ export function App() {
   // Filter & Search State
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState("popular"); // 'popular' | 'price-low' | 'price-high' | 'discount'
+  const [sortBy, setSortBy] = useState("price-low"); // 'price-low' (default: lowest price first) | 'popular' | 'price-high' | 'discount'
 
   // Modals & Drawers
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -412,10 +412,17 @@ export function App() {
         if (sortBy === 'discount') {
           const discA = a.originalPrice ? (a.originalPrice - a.price) : 0;
           const discB = b.originalPrice ? (b.originalPrice - b.price) : 0;
-          return discB - discA;
+          if (discB !== discA) return discB - discA;
+          return a.price - b.price;
         }
-        // Popular default
-        return (b.rating || 0) - (a.rating || 0);
+        if (sortBy === 'popular') {
+          if ((b.rating || 0) !== (a.rating || 0)) {
+            return (b.rating || 0) - (a.rating || 0);
+          }
+          return a.price - b.price;
+        }
+        // Default priority: lowest price first
+        return a.price - b.price;
       });
   }, [products, selectedCategory, searchQuery, sortBy]);
 
@@ -568,9 +575,9 @@ export function App() {
                   onChange={(e) => setSortBy(e.target.value)}
                   className="text-xs font-semibold bg-white border border-[#ebdcc7] text-stone-800 rounded-xl px-3 py-1.5 focus:outline-none focus:border-brand-700 shadow-xs cursor-pointer"
                 >
+                  <option value="price-low">🔥 Lowest Price First (Low to High)</option>
                   <option value="popular">Popular & Top Rated</option>
-                  <option value="price-low">Price: Low to High</option>
-                  <option value="price-high">Price: High to Low</option>
+                  <option value="price-high">Price: High to Low (Luxury Edition)</option>
                   <option value="discount">Biggest Discount & Offers</option>
                 </select>
               </div>
