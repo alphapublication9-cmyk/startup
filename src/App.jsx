@@ -285,7 +285,8 @@ export function App() {
   const filteredProducts = useMemo(() => {
     return products
       .filter(product => {
-        const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
+        const matchesCategory = selectedCategory === "All" || 
+          (product.category && product.category.trim().toLowerCase() === selectedCategory.trim().toLowerCase());
         const matchesSearch = 
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||

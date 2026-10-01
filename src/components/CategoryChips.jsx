@@ -5,7 +5,7 @@ import { Sparkles } from 'lucide-react';
 export const CategoryChips = ({ categories, selectedCategory, onSelectCategory, products }) => {
   const getProductCount = (categoryName) => {
     if (categoryName === "All") return products.length;
-    return products.filter(p => p.category === categoryName).length;
+    return products.filter(p => p.category && p.category.trim().toLowerCase() === categoryName.trim().toLowerCase()).length;
   };
 
   // Convert categories list to standard objects with name, icon, image

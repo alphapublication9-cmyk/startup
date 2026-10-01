@@ -2,9 +2,9 @@ import { INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../data/initialProducts';
 import { INITIAL_SETTINGS } from '../data/initialSettings';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../data/initialCoupons';
 
-const PRODUCTS_KEY = 'aura_kurti_products_v3';
-const CATEGORIES_KEY = 'aura_kurti_categories_v3';
-const SETTINGS_KEY = 'aura_kurti_settings_v4';
+const PRODUCTS_KEY = 'aura_kurti_products_v5';
+const CATEGORIES_KEY = 'aura_kurti_categories_v5';
+const SETTINGS_KEY = 'aura_kurti_settings_v5';
 const ORDERS_KEY = 'aura_kurti_orders_v3';
 const ADMIN_AUTH_KEY = 'aura_kurti_admin_auth_v3';
 const COUPONS_KEY = 'aura_kurti_coupons_v3';

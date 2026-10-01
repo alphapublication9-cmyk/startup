@@ -373,13 +373,13 @@ export const Navbar = ({
                 if (onScrollToCatalog) onScrollToCatalog();
               }}
               className={`py-1 transition-colors relative cursor-pointer ${
-                selectedCategory === catName 
+                selectedCategory.trim().toLowerCase() === catName.trim().toLowerCase()
                   ? 'text-[#700b1d] font-black' 
                   : 'text-stone-600 hover:text-[#700b1d]'
               }`}
             >
               <span>{catName}</span>
-              {selectedCategory === catName && (
+              {selectedCategory.trim().toLowerCase() === catName.trim().toLowerCase() && (
                 <span className="absolute -bottom-2 left-0 right-0 h-0.5 bg-[#700b1d] rounded-full"></span>
               )}
             </button>
