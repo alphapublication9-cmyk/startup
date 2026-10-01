@@ -276,6 +276,19 @@ export const WhatsAppCheckoutModal = ({
                   ₹{grandTotal.toLocaleString('en-IN')}
                 </span>
               </div>
+
+              {/* Lucky Draw Status Chip */}
+              {cartItems.reduce((a, c) => a + c.quantity, 0) >= 3 ? (
+                <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-300 text-xs text-emerald-900 font-bold flex items-center gap-2 mt-1">
+                  <Sparkles size={15} className="text-emerald-600 shrink-0" />
+                  <span>🎁 Festive Lucky Draw: 100% QUALIFIED for Grand Giveaway!</span>
+                </div>
+              ) : (
+                <div className="p-2 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 font-medium flex items-center gap-2 mt-1">
+                  <span className="text-sm">⏳</span>
+                  <span>Add {3 - cartItems.reduce((a, c) => a + c.quantity, 0)} more item to qualify for Mega Lucky Draw!</span>
+                </div>
+              )}
             </div>
 
             {/* DUAL MODE CHANNEL SELECTOR (When 'both' is enabled by Admin) */}

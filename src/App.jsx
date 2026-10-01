@@ -27,10 +27,12 @@ import { ProductCard } from './components/ProductCard';
 import { ProductQuickView } from './components/ProductQuickView';
 import { CartDrawer } from './components/CartDrawer';
 import { WhatsAppCheckoutModal } from './components/WhatsAppCheckoutModal';
-import { LuckyDrawModal } from './components/LuckyDrawModal';
+import { SpinWheelModal } from './components/SpinWheelModal';
+import { CustomerAccountModal } from './components/CustomerAccountModal';
 import { CustomerReviews } from './components/CustomerReviews';
 import { AdminPage } from './components/admin/AdminPage';
 import { Footer } from './components/Footer';
+import { getSpinWheelConfig } from './utils/spinWheel';
 
 import { 
   Sparkles, 
@@ -116,10 +118,29 @@ export function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isLuckyDrawOpen, setIsLuckyDrawOpen] = useState(false);
+  const [isSpinWheelOpen, setIsSpinWheelOpen] = useState(false);
+  const [isCustomerAccountOpen, setIsCustomerAccountOpen] = useState(false);
   const [checkoutPricing, setCheckoutPricing] = useState(null);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
 
   const catalogRef = useRef(null);
+
+  // Auto-Open Spin Wheel Popup on Website Load (1.5s delay)
+  useEffect(() => {
+    try {
+      const spinCfg = getSpinWheelConfig();
+      if (spinCfg.isEnabled !== false && spinCfg.autoOpenOnVisit !== false && !checkIsAdminRoute()) {
+        const hasSeen = sessionStorage.getItem('aura_spin_wheel_seen_session');
+        if (!hasSeen) {
+          const timer = setTimeout(() => {
+            setIsSpinWheelOpen(true);
+            sessionStorage.setItem('aura_spin_wheel_seen_session', 'true');
+          }, (spinCfg.autoOpenDelaySeconds || 1.5) * 1000);
+          return () => clearTimeout(timer);
+        }
+      }
+    } catch {}
+  }, []);
 
   // URL Hash & Route Listener for Secret Admin Portal (/admin420 or /#admin420)
   useEffect(() => {
@@ -476,7 +497,9 @@ export function App() {
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenAdmin={handleOpenAdminPage}
-        onOpenLuckyDraw={() => setIsLuckyDrawOpen(true)}
+        onOpenLuckyDraw={() => document.getElementById('lucky-draw-section')?.scrollIntoView({ behavior: 'smooth' })}
+        onOpenSpinWheel={() => setIsSpinWheelOpen(true)}
+        onOpenCustomerAccount={() => setIsCustomerAccountOpen(true)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         selectedCategory={selectedCategory}
@@ -514,6 +537,16 @@ export function App() {
             scrollToCatalog();
           }}
         />
+
+        {/* In-Page Product Detail Studio (When a Product is Selected) */}
+        {quickViewProduct && (
+          <ProductQuickView
+            product={quickViewProduct}
+            onClose={() => setQuickViewProduct(null)}
+            onAddToCart={handleAddToCart}
+            settings={settings}
+          />
+        )}
 
         {/* Women Fashion Categories Selector */}
         <CategoryChips
@@ -685,16 +718,6 @@ export function App() {
         </a>
       )}
 
-      {/* Quick View Product Modal */}
-      {quickViewProduct && (
-        <ProductQuickView
-          product={quickViewProduct}
-          onClose={() => setQuickViewProduct(null)}
-          onAddToCart={handleAddToCart}
-          settings={settings}
-        />
-      )}
-
       {/* Cart Drawer with Luxury Features */}
       <CartDrawer
         isOpen={isCartOpen}
@@ -730,15 +753,41 @@ export function App() {
         }}
       />
 
-      {/* 🎁 Festive Royal Lucky Draw Modal */}
-      <LuckyDrawModal
-        isOpen={isLuckyDrawOpen}
-        onClose={() => setIsLuckyDrawOpen(false)}
-        onShopNow={() => {
-          setIsLuckyDrawOpen(false);
+      {/* 🎡 VIP Spin the Wheel Modal */}
+      <SpinWheelModal
+        isOpen={isSpinWheelOpen}
+        onClose={() => setIsSpinWheelOpen(false)}
+        onOpenStoreCatalog={() => {
+          setIsSpinWheelOpen(false);
           scrollToCatalog();
         }}
-        settings={settings}
+        onApplyCouponCode={(code) => {
+          const matched = coupons.find(c => c.code === code);
+          if (matched) {
+            setAppliedPromo(matched);
+          } else {
+            setAppliedPromo({
+              code: code,
+              discountType: code.includes('25') ? 'percentage' : 'flat',
+              discountValue: code.includes('500') ? 500 : (code.includes('300') ? 300 : (code.includes('25') ? 25 : 100)),
+              description: 'Won on Spin Wheel'
+            });
+          }
+        }}
+      />
+
+      {/* 👤 Amazon / Flipkart Style Customer Account Center Sidebar Drawer */}
+      <CustomerAccountModal
+        isOpen={isCustomerAccountOpen}
+        onClose={() => setIsCustomerAccountOpen(false)}
+        onOpenCart={() => {
+          setIsCustomerAccountOpen(false);
+          setIsCartOpen(true);
+        }}
+        onOpenCatalog={() => {
+          setIsCustomerAccountOpen(false);
+          scrollToCatalog();
+        }}
       />
 
       {/* Boutique Footer */}

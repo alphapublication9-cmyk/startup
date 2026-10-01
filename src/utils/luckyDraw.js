@@ -1,6 +1,7 @@
 import { idbGet, idbSet } from './indexedDBStorage';
 import { getSupabase } from './supabaseClient';
 import { getStoredOrders } from './storage';
+import { recordCustomerLead } from './customerDirectory';
 
 const LUCKY_DRAW_CONFIG_KEY = 'aura_kurti_lucky_draw_config_v2';
 const LUCKY_DRAW_USERS_KEY = 'aura_kurti_lucky_draw_users_v2';
@@ -132,6 +133,9 @@ export const setCustomerAuthSession = (user) => {
     } else {
       localStorage.removeItem(LUCKY_DRAW_AUTH_KEY);
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('customer-auth-changed', { detail: user }));
+    }
   } catch (e) {
     console.error("Failed to set customer auth session", e);
   }
@@ -195,6 +199,18 @@ export const registerLuckyDrawUser = ({ name, phone, password, city = '', addres
   const updatedUsers = [newUser, ...users];
   saveLuckyDrawUsers(updatedUsers);
   setCustomerAuthSession(newUser);
+
+  // Also record in Customer Directory / CRM Leads database
+  try {
+    recordCustomerLead({
+      name: newUser.name,
+      phone: newUser.phone,
+      city: newUser.city,
+      address: newUser.address
+    });
+  } catch (err) {
+    console.warn("Failed to record customer lead:", err);
+  }
 
   // Sync to Supabase
   try {

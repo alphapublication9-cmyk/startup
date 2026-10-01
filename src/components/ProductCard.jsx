@@ -32,7 +32,7 @@ export const ProductCard = ({
   };
 
   const handleCardClick = () => {
-    trackProductAction(product.id, product, 'view');
+    // view is tracked inside ProductQuickView as 'quick_view' (which also increments views)
     onQuickView(product);
   };
 

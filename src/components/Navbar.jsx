@@ -17,10 +17,12 @@ import {
   TrendingUp,
   MessageCircle,
   Send,
-  Gift
+  Gift,
+  User
 } from 'lucide-react';
 import { cleanTelegramHandle, getDirectChannelLink } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
+import { getCustomerAuthSession } from '../utils/luckyDraw';
 
 const TRENDING_SEARCHES = [
   "Anarkali Kurti",
@@ -36,6 +38,8 @@ export const Navbar = ({
   onOpenCart, 
   onOpenAdmin, 
   onOpenLuckyDraw,
+  onOpenSpinWheel,
+  onOpenCustomerAccount,
   searchQuery, 
   setSearchQuery, 
   selectedCategory, 
@@ -51,7 +55,21 @@ export const Navbar = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [customerUser, setCustomerUser] = useState(getCustomerAuthSession);
   const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setCustomerUser(getCustomerAuthSession());
+    };
+    handleAuthChange();
+    window.addEventListener('customer-auth-changed', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+    return () => {
+      window.removeEventListener('customer-auth-changed', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
+  }, [cartCount]);
 
   // Normalize category names
   const categoryNames = [
@@ -315,17 +333,25 @@ export const Navbar = ({
               )}
             </a>
 
-            {/* 🎁 Lucky Draw Contest Button */}
+            {/* Amazon / Flipkart Style Customer Account Button */}
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onOpenLuckyDraw}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-100 via-gold-100 to-amber-200 hover:from-amber-200 hover:to-gold-300 text-amber-950 border border-amber-400/80 rounded-full transition-all shadow-xs cursor-pointer group font-bold text-xs shrink-0"
-              title="Enter Festive Royal Lucky Draw"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onOpenCustomerAccount}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-stone-100 hover:bg-amber-100/70 text-stone-800 hover:text-amber-950 border border-stone-200 rounded-full transition-all shadow-2xs cursor-pointer group text-left shrink-0"
+              title={customerUser ? `Logged in as ${customerUser.name} (${customerUser.phone})` : "Customer Login & Account"}
             >
-              <Gift size={16} className="text-amber-800 group-hover:rotate-12 transition-transform shrink-0 animate-bounce" />
-              <span className="hidden xs:inline">Lucky Draw</span>
-              <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded-full uppercase">Win</span>
+              <div className="w-6 h-6 rounded-full bg-amber-200/90 text-amber-950 flex items-center justify-center font-black text-xs shrink-0">
+                {customerUser ? customerUser.name.charAt(0).toUpperCase() : <User size={13} />}
+              </div>
+              <div className="hidden xs:block leading-tight pr-0.5">
+                <span className="text-[9px] text-stone-500 font-medium block">
+                  {customerUser ? `Hello, ${customerUser.name.split(' ')[0]}` : 'Hello, Sign in'}
+                </span>
+                <span className="text-[11px] font-bold text-stone-900 block truncate max-w-[95px]">
+                  {customerUser ? customerUser.name : 'Account'}
+                </span>
+              </div>
             </motion.button>
 
             {/* Cart Button */}

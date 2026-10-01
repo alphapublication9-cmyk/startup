@@ -2,9 +2,11 @@ import { idbGet, idbSet } from './indexedDBStorage';
 import { getSupabase } from './supabaseClient';
 
 const PRODUCT_ANALYTICS_KEY = 'aura_kurti_product_analytics_v2';
+// Per-session throttle: same product view counted max once per 5 minutes
+const _viewThrottle = {};
 
 /**
- * Gets all product analytics from memory/storage
+ * Gets all product analytics from localStorage
  */
 export const getStoredProductAnalytics = () => {
   try {
@@ -32,6 +34,49 @@ export const saveStoredProductAnalytics = (data) => {
 };
 
 /**
+ * Fetch analytics from Supabase and merge into localStorage
+ * Returns merged map
+ */
+export const fetchAndMergeCloudAnalytics = async () => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return getStoredProductAnalytics();
+
+    const { data, error } = await supabase
+      .from('analytics')
+      .select('product_id, views, quick_views, cart_adds, orders, name, category, updated_at');
+
+    if (error || !data) return getStoredProductAnalytics();
+
+    const local = getStoredProductAnalytics();
+
+    // Merge: take MAX of local vs cloud for each counter (prevents reset on other device)
+    for (const row of data) {
+      const pId = String(row.product_id);
+      const localStat = local[pId] || {};
+      local[pId] = {
+        ...localStat,
+        id: pId,
+        name: row.name || localStat.name || '',
+        category: row.category || localStat.category || '',
+        views: Math.max(Number(localStat.views || 0), Number(row.views || 0)),
+        quickViews: Math.max(Number(localStat.quickViews || 0), Number(row.quick_views || 0)),
+        cartAdds: Math.max(Number(localStat.cartAdds || 0), Number(row.cart_adds || 0)),
+        orders: Math.max(Number(localStat.orders || 0), Number(row.orders || 0)),
+        lastActionAt: localStat.lastActionAt || row.updated_at || null,
+        history: localStat.history || []
+      };
+    }
+
+    saveStoredProductAnalytics(local);
+    return local;
+  } catch (e) {
+    console.error("Failed to fetch cloud analytics", e);
+    return getStoredProductAnalytics();
+  }
+};
+
+/**
  * Track an interaction on a product
  * @param {string|number} productId 
  * @param {object} product - optional product info (name, category, price, image)
@@ -40,6 +85,15 @@ export const saveStoredProductAnalytics = (data) => {
 export const trackProductAction = (productId, product = {}, actionType = 'view') => {
   if (!productId) return;
   const pId = String(productId);
+
+  // Throttle: 'view' and 'quick_view' — max once per 5 min per product per session
+  if (actionType === 'view' || actionType === 'quick_view') {
+    const now = Date.now();
+    const lastTime = _viewThrottle[pId] || 0;
+    if (now - lastTime < 5 * 60 * 1000) return; // 5 minutes throttle
+    _viewThrottle[pId] = now;
+  }
+
   const current = getStoredProductAnalytics();
   const existing = current[pId] || {
     id: pId,
@@ -59,7 +113,7 @@ export const trackProductAction = (productId, product = {}, actionType = 'view')
     existing.views = (existing.views || 0) + 1;
   } else if (actionType === 'quick_view') {
     existing.quickViews = (existing.quickViews || 0) + 1;
-    existing.views = (existing.views || 0) + 1; // Quick view also counts as product view
+    existing.views = (existing.views || 0) + 1; // quick_view counts as a view too
   } else if (actionType === 'cart_add') {
     existing.cartAdds = (existing.cartAdds || 0) + 1;
   } else if (actionType === 'order') {
@@ -101,12 +155,11 @@ export const trackProductAction = (productId, product = {}, actionType = 'view')
 };
 
 /**
- * Get summary stats across all products
+ * Get summary stats across all products (from localStorage)
  */
 export const getProductAnalyticsList = (allProducts = []) => {
   const analyticsMap = getStoredProductAnalytics();
   
-  // Combine all products from catalog with analytics stats
   const combined = allProducts.map(p => {
     const pId = String(p.id);
     const stat = analyticsMap[pId] || {};
@@ -115,7 +168,6 @@ export const getProductAnalyticsList = (allProducts = []) => {
     const cartAdds = Number(stat.cartAdds || 0);
     const orders = Number(stat.orders || 0);
     
-    // Calculate conversion rate %
     const conversionRate = views > 0 ? ((orders / views) * 100).toFixed(1) : '0.0';
     const cartRate = views > 0 ? ((cartAdds / views) * 100).toFixed(1) : '0.0';
 

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { normalizeImageUrl } from '../utils/imageUrl';
+import { getLuckyDrawConfig, getCustomerAuthSession } from '../utils/luckyDraw';
 
 export const CartDrawer = ({ 
   isOpen, 
@@ -261,20 +262,70 @@ export const CartDrawer = ({
           {/* 3. DRAWER BODY - ITEMS LIST */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
             {cartItems.length === 0 ? (
-              <div className="text-center py-16 px-4 space-y-4">
-                <div className="w-20 h-20 mx-auto rounded-full bg-stone-100 border border-gold-300/40 flex items-center justify-center text-stone-400">
-                  <ShoppingBag size={36} className="text-gold-600" />
+              <div className="space-y-4 py-2">
+                <div className="text-center py-6 px-4 bg-white rounded-3xl border border-stone-200 shadow-xs space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
+                    <ShoppingBag size={24} className="text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-base font-bold text-stone-900">Your shopping bag is empty</h3>
+                    <p className="text-xs text-stone-500 max-w-xs mx-auto mt-0.5">
+                      Explore our handcrafted designer Kurtis, Sarees, and Anarkalis.
+                    </p>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="px-6 py-2.5 bg-gradient-to-r from-[#700b1d] to-[#4c0519] text-gold-100 text-xs font-bold rounded-full shadow-md hover:opacity-95 transition-all cursor-pointer border border-gold-400/40"
+                  >
+                    Explore Collection
+                  </button>
                 </div>
-                <h3 className="font-serif text-lg font-bold text-stone-800">Your bag is empty</h3>
-                <p className="text-xs text-stone-500 max-w-xs mx-auto">
-                  Explore our luxury collection of handcrafted designer Kurtis, Sarees, and Lehengas.
-                </p>
-                <button
-                  onClick={onClose}
-                  className="px-6 py-2.5 royal-maroon-bg text-gold-100 text-xs font-bold rounded-full shadow-md hover:opacity-95 transition-all cursor-pointer"
-                >
-                  Explore Collection
-                </button>
+
+                {/* Lucky Draw Grand Giveaway Showcase in Empty Cart */}
+                <div className="p-4 bg-gradient-to-br from-amber-50 via-gold-50/60 to-amber-100/70 rounded-3xl border-2 border-amber-300 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-amber-200 text-amber-950 flex items-center justify-center font-black text-xs">
+                        🎁
+                      </div>
+                      <div>
+                        <h4 className="font-heading text-xs font-black text-amber-950 uppercase tracking-wider">
+                          Festive Mega Lucky Draw
+                        </h4>
+                        <span className="text-[10px] text-amber-900/80 font-bold block">
+                          Order min 3 items to qualify
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-full border border-amber-300">
+                      3 Items to Enter
+                    </span>
+                  </div>
+
+                  {/* Grand Prize Preview Card */}
+                  <div className="bg-white p-3 rounded-2xl border border-amber-200/80">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-20 rounded-xl overflow-hidden border border-amber-300 bg-stone-50 shrink-0">
+                        <img
+                          src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=600&q=80"
+                          alt="Heritage Pure Katan Banarasi Silk Saree"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[9px] font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md uppercase">
+                          Grand Prize (Worth ₹4,999)
+                        </span>
+                        <h5 className="font-heading text-xs font-bold text-stone-900 mt-0.5 line-clamp-1">
+                          Heritage Pure Katan Banarasi Silk Saree
+                        </h5>
+                        <p className="text-[10px] text-stone-500 line-clamp-2 mt-0.5">
+                          Handcrafted pure zari silk saree with designer blouse piece free for lucky winner.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
@@ -342,6 +393,83 @@ export const CartDrawer = ({
                     )}
                   </div>
                 )}
+
+                {/* 🎁 FESTIVE ROYAL LUCKY DRAW LIVE CART METER */}
+                {(() => {
+                  const totalItemCount = cartItems.reduce((acc, c) => acc + c.quantity, 0);
+                  const luckyConfig = getLuckyDrawConfig();
+                  const minDrawItems = luckyConfig.minProductsRequired || 3;
+                  const isDrawEligible = totalItemCount >= minDrawItems;
+                  const luckyUser = getCustomerAuthSession();
+
+                  return (
+                    <div className="p-3.5 bg-gradient-to-br from-amber-50 via-gold-50/60 to-amber-100/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-extrabold text-xs text-amber-950">
+                          <div className="w-6 h-6 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center font-black text-xs">
+                            🎁
+                          </div>
+                          <span>Festive Lucky Draw Contest</span>
+                        </div>
+                        {isDrawEligible ? (
+                          <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                            <Check size={12} className="text-emerald-700" />
+                            <span>100% QUALIFIED</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-full border border-amber-300/80">
+                            ⏳ Need {minDrawItems - totalItemCount} more
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-stone-700">
+                          <span>{totalItemCount} / {minDrawItems} Products in Bag</span>
+                          <span className="text-amber-900 font-extrabold">
+                            {isDrawEligible ? '🎉 Golden Ticket Activated!' : `${Math.round((totalItemCount / minDrawItems) * 100)}% Complete`}
+                          </span>
+                        </div>
+
+                        <div className="w-full h-2.5 bg-white rounded-full overflow-hidden border border-amber-300 shadow-inner">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isDrawEligible ? 'bg-emerald-600' : 'bg-gradient-to-r from-amber-400 to-amber-500'
+                            }`}
+                            style={{ width: `${Math.min(100, (totalItemCount / minDrawItems) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Grand Prize Preview */}
+                      <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-amber-200 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-base">👑</span>
+                          <div className="min-w-0">
+                            <span className="text-[9px] text-stone-500 font-bold block uppercase tracking-wider">
+                              Grand Giveaway Prize
+                            </span>
+                            <strong className="text-stone-900 text-xs font-bold truncate block">
+                              {isDrawEligible 
+                                ? (luckyUser ? `Ticket #${luckyUser.ticketNumber} Qualifies for Banarasi Saree (₹4,999)` : 'Heritage Pure Katan Banarasi Silk Saree (₹4,999)')
+                                : 'Pure Katan Banarasi Silk Saree (Worth ₹4,999)'}
+                            </strong>
+                          </div>
+                        </div>
+                        {!isDrawEligible && (
+                          <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-[10px] rounded-lg border border-amber-300 shrink-0 cursor-pointer shadow-2xs"
+                          >
+                            + Add Items
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Cart Items */}
                 <div className="space-y-3">

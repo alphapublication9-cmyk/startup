@@ -71,7 +71,7 @@ import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
 import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
-import { getProductAnalyticsList, resetProductAnalytics } from '../../utils/productAnalytics';
+import { getProductAnalyticsList, resetProductAnalytics, fetchAndMergeCloudAnalytics } from '../../utils/productAnalytics';
 import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV } from '../../utils/customerDirectory';
 import { 
   getLuckyDrawConfig, 
@@ -228,10 +228,23 @@ export const AdminPage = ({
   useEffect(() => {
     setAnalyticsList(getProductAnalyticsList(products));
     setCustomers(getStoredCustomers());
+    // Auto-sync analytics from Supabase when analytics tab opens
+    if (activeTab === 'analytics') {
+      fetchAndMergeCloudAnalytics().then(() => {
+        setAnalyticsList(getProductAnalyticsList(products));
+      }).catch(() => {});
+    }
   }, [products, activeTab]);
 
-  const handleRefreshAnalytics = () => {
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const handleRefreshAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      await fetchAndMergeCloudAnalytics(); // sync Supabase → localStorage
+    } catch {}
     setAnalyticsList(getProductAnalyticsList(products));
+    setAnalyticsLoading(false);
   };
 
   const handleResetAnalytics = () => {
@@ -2377,11 +2390,12 @@ export const AdminPage = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleRefreshAnalytics}
-                      className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Refresh Analytics Stats"
+                      disabled={analyticsLoading}
+                      className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-60"
+                      title="Sync from Cloud & Refresh Analytics"
                     >
-                      <RotateCcw size={13} />
-                      <span>Refresh</span>
+                      <RotateCcw size={13} className={analyticsLoading ? 'animate-spin' : ''} />
+                      <span>{analyticsLoading ? 'Syncing...' : 'Sync & Refresh'}</span>
                     </button>
 
                     <button

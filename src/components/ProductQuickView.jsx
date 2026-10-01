@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, 
+  ArrowLeft,
   Star, 
   ShoppingBag, 
   MessageCircle, 
@@ -19,13 +19,20 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
-  RotateCcw
+  Heart,
+  Share2,
+  X
 } from 'lucide-react';
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
 import { trackProductAction } from '../utils/productAnalytics';
 
-export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} }) => {
+export const ProductQuickView = ({ 
+  product, 
+  onClose, 
+  onAddToCart, 
+  settings = {} 
+}) => {
   if (!product) return null;
 
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] || 'M');
@@ -37,6 +44,7 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
   // Lightbox Zoom State
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const detailRef = useRef(null);
 
   const isTelegram = settings.orderChannel === 'telegram';
   const channelLabel = isTelegram ? 'Telegram' : 'WhatsApp';
@@ -45,24 +53,13 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
   const images = rawImages.filter(Boolean);
   const activeImage = images[selectedImageIndex] || product.image;
 
-  // Track product view on open
+  // Scroll into view when product opens
   useEffect(() => {
     if (product && product.id) {
       trackProductAction(product.id, product, 'quick_view');
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [product?.id]);
-
-  // Keyboard navigation for lightbox
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!isLightboxOpen) return;
-      if (e.key === 'Escape') setIsLightboxOpen(false);
-      if (e.key === 'ArrowRight') setSelectedImageIndex((prev) => (prev + 1) % images.length);
-      if (e.key === 'ArrowLeft') setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLightboxOpen, images.length]);
 
   const discountPercent = product.originalPrice 
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
@@ -90,213 +87,224 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
   };
 
   return (
-    <>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-stone-950/75 backdrop-blur-sm overflow-y-auto"
-        onClick={onClose}
-      >
-        <motion.div 
-          initial={{ scale: 0.92, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.92, opacity: 0, y: 20 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="relative w-full max-w-4xl bg-[#fdfcf9] rounded-3xl shadow-2xl border border-gold-300/60 overflow-hidden my-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Close Button */}
+    <section 
+      ref={detailRef}
+      id="product-detail-view"
+      className="py-6 sm:py-8 bg-gradient-to-b from-[#fdfbf7] via-[#faf7f2] to-[#fdfbf7] border-b border-amber-200/80 animate-fadeIn"
+    >
+      <div className="container mx-auto px-4 max-w-6xl">
+        
+        {/* Top Breadcrumbs & Back Navigation Bar */}
+        <div className="flex items-center justify-between gap-4 mb-5 pb-3 border-b border-amber-200/60">
+          <div className="flex items-center gap-2 text-xs text-stone-500 font-medium overflow-x-auto whitespace-nowrap">
+            <button 
+              type="button" 
+              onClick={onClose}
+              className="hover:text-amber-900 transition-colors cursor-pointer font-bold flex items-center gap-1 text-stone-700"
+            >
+              <ArrowLeft size={14} />
+              <span>Back to Catalog</span>
+            </button>
+            <span>/</span>
+            <span>{product.category || "Women's Collection"}</span>
+            <span>/</span>
+            <span className="text-stone-900 font-bold truncate max-w-[200px] sm:max-w-md">{product.name}</span>
+          </div>
+
           <button
+            type="button"
             onClick={onClose}
-            aria-label="Close details"
-            className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-900/90 hover:bg-[#700b1d] text-white shadow-xl flex items-center justify-center transition-all cursor-pointer border border-white/20"
+            className="px-3.5 py-1.5 rounded-full bg-white hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center gap-1.5 shadow-xs border border-stone-200 cursor-pointer transition-all active:scale-95 shrink-0"
           >
-            <X size={18} />
+            <X size={15} />
+            <span>Close Details</span>
           </button>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 max-h-[92vh] overflow-y-auto">
+        {/* Main In-Page Product Studio Card */}
+        <div className="bg-white rounded-3xl p-4 sm:p-6 md:p-8 border-2 border-amber-300 shadow-lg grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* LEFT COLUMN: MULTI-PHOTO GALLERY STUDIO */}
+          <div className="lg:col-span-6 space-y-4">
             
-            {/* Left Column: Multi-Photo Gallery Studio */}
-            <div className="p-3 sm:p-5 md:p-6 bg-[#faf5ed] flex flex-col justify-start space-y-3">
-              
-              {/* Main Active Image Viewport with Slide Arrows & Zoom */}
-              <div 
-                onClick={() => handleOpenLightbox(selectedImageIndex)}
-                className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-gold-300/50 shadow-md group cursor-zoom-in select-none bg-white"
-                title="Click to Enlarge / Full Screen Photo"
-              >
-                <motion.img
-                  key={activeImage}
-                  initial={{ opacity: 0.7 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                  src={normalizeImageUrl(activeImage)}
-                  alt={product.name}
-                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 pointer-events-none"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                  }}
-                />
+            {/* Main High-Res Photo Viewport */}
+            <div 
+              onClick={() => handleOpenLightbox(selectedImageIndex)}
+              className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border-2 border-amber-300/80 shadow-md group cursor-zoom-in select-none bg-stone-50"
+              title="Click to Zoom Full Screen"
+            >
+              <img
+                src={normalizeImageUrl(activeImage)}
+                alt={product.name}
+                className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                }}
+              />
 
-                {/* Left & Right Slide Navigation Arrows */}
-                {images.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
-                      }}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-950/80 hover:bg-[#700b1d] text-white flex items-center justify-center shadow-xl border border-white/30 transition-all hover:scale-110 active:scale-95 cursor-pointer z-20 backdrop-blur-xs"
-                      aria-label="Previous Photo"
-                      title="Previous Photo"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedImageIndex((prev) => (prev + 1) % images.length);
-                      }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-950/80 hover:bg-[#700b1d] text-white flex items-center justify-center shadow-xl border border-white/30 transition-all hover:scale-110 active:scale-95 cursor-pointer z-20 backdrop-blur-xs"
-                      aria-label="Next Photo"
-                      title="Next Photo"
-                    >
-                      <ChevronRight size={20} />
-                    </button>
-                  </>
-                )}
-
-                {/* Enlarge / Fullscreen Floating Trigger Pill */}
-                <div className="absolute top-3 right-3 bg-stone-950/85 hover:bg-[#700b1d] text-white text-[10px] sm:text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md border border-white/20 transition-all opacity-95 group-hover:opacity-100 group-hover:scale-105 z-20">
-                  <ZoomIn size={12} className="text-gold-300" />
-                  <span>Enlarge Photo</span>
-                </div>
-
-                {/* Photo Counter Badge */}
-                {images.length > 1 && (
-                  <div className="absolute bottom-3 right-3 bg-stone-900/90 text-gold-200 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full backdrop-blur-sm border border-gold-500/40 z-20">
-                    {selectedImageIndex + 1} / {images.length} Photos
-                  </div>
-                )}
-
-                {/* Ribbon Badge */}
+              {/* Badges */}
+              <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
                 {product.badge && (
-                  <span className="absolute top-2.5 left-2.5 royal-maroon-bg text-gold-100 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-gold-400/40 z-20 shadow-sm">
+                  <span className="px-3 py-1 bg-stone-950/90 text-gold-200 text-[10px] font-black uppercase tracking-wider rounded-full shadow-md backdrop-blur-xs border border-gold-400/40">
                     {product.badge}
                   </span>
                 )}
-
-                {/* Offer Banner */}
-                {product.offer && (
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-[#700b1d] via-[#4a040e] to-[#260107] text-gold-200 px-2.5 py-1 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-md border-t border-gold-500/30 z-10">
-                    <Sparkles size={13} className="text-gold-300 animate-spin" style={{ animationDuration: '4s' }} />
-                    <span>{product.offer}</span>
-                  </div>
+                {discountPercent > 0 && (
+                  <span className="px-2.5 py-0.5 bg-rose-600 text-white text-[10px] font-black uppercase rounded-full shadow-md">
+                    {discountPercent}% OFF
+                  </span>
                 )}
               </div>
 
-              {/* Multi-Photo Thumbnail Bar Below the Main Photo */}
+              {/* Slide Navigation Arrows */}
               {images.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 w-full scrollbar-none no-scrollbar justify-center sm:justify-start">
-                  {images.map((img, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setSelectedImageIndex(idx)}
-                      onMouseEnter={() => setSelectedImageIndex(idx)}
-                      className={`w-14 h-18 sm:w-16 sm:h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer relative group bg-white shadow-xs ${
-                        selectedImageIndex === idx 
-                          ? 'border-[#700b1d] scale-105 shadow-md ring-2 ring-gold-400/60' 
-                          : 'border-stone-300/80 opacity-60 hover:opacity-100 hover:border-amber-600'
-                      }`}
-                      title={`View Photo ${idx + 1}`}
-                    >
-                      <img 
-                        src={normalizeImageUrl(img)} 
-                        alt={`View ${idx + 1}`} 
-                        className="w-full h-full object-cover object-top" 
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                        }}
-                      />
-                      <span className={`absolute bottom-0.5 right-0.5 text-[8px] font-bold px-1 rounded ${
-                        selectedImageIndex === idx ? 'bg-[#700b1d] text-white' : 'bg-black/70 text-white'
-                      }`}>
-                        {idx + 1}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-stone-800 shadow-md flex items-center justify-center transition-all cursor-pointer opacity-80 hover:opacity-100 z-10"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageIndex((prev) => (prev + 1) % images.length);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-stone-800 shadow-md flex items-center justify-center transition-all cursor-pointer opacity-80 hover:opacity-100 z-10"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </>
               )}
 
+              {/* Zoom hint */}
+              <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold rounded-lg flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <ZoomIn size={12} />
+                <span>Enlarge Photo</span>
+              </div>
             </div>
 
-          {/* Right Column: Details & Ordering */}
-          <div className="p-4 sm:p-6 md:p-8 flex flex-col justify-between space-y-4">
-            <div className="pr-8 sm:pr-12 md:pr-10">
-              <div className="flex items-center gap-2 flex-wrap text-xs text-stone-500 mb-1.5">
-                <span className="uppercase tracking-widest font-extrabold text-[#700b1d] text-[11px] sm:text-xs">
-                  {product.category}
+            {/* Thumbnail Strip */}
+            {images.length > 1 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedImageIndex(idx)}
+                    className={`relative w-16 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                      selectedImageIndex === idx
+                        ? 'border-amber-500 shadow-sm scale-105'
+                        : 'border-stone-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img
+                      src={normalizeImageUrl(img)}
+                      alt={`Thumbnail ${idx + 1}`}
+                      className="w-full h-full object-cover object-top"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Offer Banner on Image Bottom */}
+            {product.offer && (
+              <div className="p-3 bg-gradient-to-r from-amber-500/10 via-amber-400/20 to-amber-500/10 border border-amber-300 rounded-2xl flex items-center gap-2 text-xs text-amber-950 font-bold">
+                <Sparkles size={16} className="text-amber-600 shrink-0" />
+                <span>Special Promotion: {product.offer}</span>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: PRODUCT SPECIFICATIONS & PURCHASE ACTIONS */}
+          <div className="lg:col-span-6 space-y-5">
+            
+            {/* Category & Rating */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-amber-900 uppercase tracking-widest bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
+                {product.category || "Designer Collection"}
+              </span>
+
+              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                <Star size={14} className="fill-amber-400 text-amber-400" />
+                <span>{product.rating || "4.9"}</span>
+                <span className="text-stone-400">({product.reviewsCount || 12} reviews)</span>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div>
+              <h1 className="font-heading text-xl sm:text-2xl md:text-3xl font-bold text-stone-900 leading-tight">
+                {product.name}
+              </h1>
+              {product.shortDescription && (
+                <p className="text-xs sm:text-sm text-stone-600 mt-1 font-light leading-relaxed">
+                  {product.shortDescription}
+                </p>
+              )}
+            </div>
+
+            {/* Pricing Section */}
+            <div className="p-4 bg-gradient-to-br from-amber-50/70 via-gold-50/50 to-white rounded-2xl border border-amber-200 flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <span className="text-[10px] text-stone-500 uppercase tracking-wider block font-bold">
+                  Special Boutique Price
                 </span>
-                <span className="text-stone-300">•</span>
-                <div className="flex items-center gap-1 text-amber-500 font-semibold text-xs">
-                  <Star size={13} fill="currentColor" />
-                  <span className="text-stone-800 font-bold">{product.rating || 4.9}</span>
-                  <span className="text-stone-500">({product.reviewsCount || 42} reviews)</span>
+                <div className="flex items-baseline gap-2.5 mt-0.5">
+                  <span className="text-2xl sm:text-3xl font-black text-brand-950 font-mono">
+                    ₹{Number(product.price).toLocaleString('en-IN')}
+                  </span>
+                  {product.originalPrice && (
+                    <span className="text-sm sm:text-base text-stone-400 line-through font-mono">
+                      ₹{Number(product.originalPrice).toLocaleString('en-IN')}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <h2 className="font-heading text-lg sm:text-2xl font-bold text-stone-900 leading-tight">
-                {product.name}
-              </h2>
-
-              {/* Pricing */}
-              <div className="flex items-baseline gap-3 mt-3 flex-wrap">
-                <span className="font-heading text-2xl sm:text-3xl font-extrabold text-stone-900">
-                  ₹{product.price.toLocaleString('en-IN')}
+              {savingsAmount > 0 && (
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-xl border border-emerald-300 shadow-2xs">
+                  Save ₹{savingsAmount.toLocaleString('en-IN')} ({discountPercent}% OFF)
                 </span>
-                {product.originalPrice && product.originalPrice > product.price && (
-                  <span className="text-sm text-stone-400 line-through">
-                    ₹{product.originalPrice.toLocaleString('en-IN')}
-                  </span>
-                )}
-                {discountPercent > 0 && (
-                  <span className="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-2.5 py-1 rounded-full">
-                    {discountPercent}% OFF (Save ₹{savingsAmount.toLocaleString('en-IN')})
-                  </span>
-                )}
-              </div>
+              )}
+            </div>
 
-              {/* Size Selector */}
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs uppercase font-bold tracking-wider text-stone-700">
+            {/* Size Selector */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
                     Select Size: <strong className="text-amber-900">{selectedSize}</strong>
                   </span>
-                  <button 
+                  <button
+                    type="button"
                     onClick={() => setShowSizeGuide(!showSizeGuide)}
-                    className="text-xs text-amber-900 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-amber-800 hover:text-amber-950 font-bold flex items-center gap-1 cursor-pointer underline"
                   >
                     <Ruler size={13} />
                     <span>Size Guide</span>
                   </button>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {(product.sizes || ['S', 'M', 'L', 'XL']).map((sz) => (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {product.sizes.map((sz) => (
                     <button
                       key={sz}
+                      type="button"
                       onClick={() => setSelectedSize(sz)}
-                      className={`min-w-10 h-10 px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center cursor-pointer whitespace-nowrap ${
+                      className={`min-w-[44px] h-10 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center ${
                         selectedSize === sz
-                          ? 'royal-maroon-bg text-gold-100 shadow-md scale-105'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                          ? 'bg-[#700b1d] text-gold-100 border-2 border-[#700b1d] shadow-sm font-black scale-105'
+                          : 'bg-stone-50 hover:bg-amber-50 text-stone-800 border border-stone-300'
                       }`}
                     >
                       {sz}
@@ -304,275 +312,131 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
                   ))}
                 </div>
 
+                {/* Size Guide Table Toggle */}
                 {showSizeGuide && (
-                  <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-stone-700 space-y-1">
-                    <p className="font-bold text-amber-950">Standard Women Size Chart (Inches):</p>
-                    <div className="grid grid-cols-4 gap-1 text-center font-mono">
-                      <div className="font-bold bg-amber-100/70 p-1">Size</div>
-                      <div className="font-bold bg-amber-100/70 p-1">Bust</div>
-                      <div className="font-bold bg-amber-100/70 p-1">Waist</div>
-                      <div className="font-bold bg-amber-100/70 p-1">Hip</div>
-                      <div className="p-1">S</div><div className="p-1">36"</div><div className="p-1">32"</div><div className="p-1">38"</div>
-                      <div className="p-1">M</div><div className="p-1">38"</div><div className="p-1">34"</div><div className="p-1">40"</div>
-                      <div className="p-1">L</div><div className="p-1">40"</div><div className="p-1">36"</div><div className="p-1">42"</div>
-                      <div className="p-1">XL</div><div className="p-1">42"</div><div className="p-1">38"</div><div className="p-1">44"</div>
-                      <div className="p-1">XXL</div><div className="p-1">44"</div><div className="p-1">40"</div><div className="p-1">46"</div>
+                  <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-stone-700 animate-fadeIn space-y-1">
+                    <strong className="block font-bold text-stone-900">Standard Indian Size Chart:</strong>
+                    <div className="grid grid-cols-4 gap-1 text-center font-mono text-[11px] pt-1">
+                      <div className="p-1 bg-white rounded border">S (36")</div>
+                      <div className="p-1 bg-white rounded border">M (38")</div>
+                      <div className="p-1 bg-white rounded border">L (40")</div>
+                      <div className="p-1 bg-white rounded border">XL (42")</div>
                     </div>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Quantity Selector */}
-              <div className="mt-4 flex items-center gap-4">
-                <span className="text-xs uppercase font-bold tracking-wider text-stone-700">Quantity:</span>
-                <div className="flex items-center border border-stone-300 rounded-xl bg-white overflow-hidden shadow-xs">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="p-2 text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className="px-4 text-xs font-bold text-stone-800">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="p-2 text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Fabric & Specifications */}
-              <div className="mt-4 p-3.5 bg-stone-100/70 rounded-2xl space-y-1.5 text-xs text-stone-700">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-stone-900 w-20">Fabric:</span>
-                  <span>{product.fabric || 'Artisan Handcrafted Material'}</span>
-                </div>
-                {product.color && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-stone-900 w-20">Color:</span>
-                    <span>{product.color}</span>
-                  </div>
-                )}
-                <div className="flex items-start gap-2 pt-1 border-t border-stone-200">
-                  <span className="font-bold text-stone-900 w-20 shrink-0">Details:</span>
-                  <span className="text-stone-600 leading-relaxed">{product.description}</span>
-                </div>
+            {/* Quantity Selector */}
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                Quantity:
+              </span>
+              <div className="flex items-center bg-stone-50 border border-stone-300 rounded-xl p-1 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="w-7 h-7 rounded-lg bg-white hover:bg-stone-200 text-stone-800 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <Minus size={13} />
+                </button>
+                <span className="w-9 text-center font-mono font-bold text-xs text-stone-900">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(quantity + 1)}
+                  className="w-7 h-7 rounded-lg bg-white hover:bg-stone-200 text-stone-800 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <Plus size={13} />
+                </button>
               </div>
             </div>
 
-            {/* CTAs */}
-            <div className="space-y-2.5 pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Add to Cart */}
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleAddToCart}
-                  disabled={!product.inStock}
-                  className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
-                    isAdded
-                      ? 'bg-emerald-600 text-white'
-                      : 'royal-maroon-bg text-gold-100 hover:opacity-95'
-                  }`}
-                >
-                  {isAdded ? (
-                    <>
-                      <Check size={18} />
-                      <span>Added to Bag!</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingBag size={18} className="text-gold-300" />
-                      <span>Add to Bag (₹{(product.price * quantity).toLocaleString('en-IN')})</span>
-                    </>
-                  )}
-                </motion.button>
+            {/* Primary Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="py-3.5 px-4 bg-gradient-to-r from-[#700b1d] via-[#5c0716] to-[#42040f] hover:from-[#850e24] hover:to-[#540614] text-gold-100 font-extrabold text-xs sm:text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all border border-gold-400/40"
+              >
+                {isAdded ? <Check size={16} /> : <ShoppingBag size={16} />}
+                <span>{isAdded ? 'Added to Bag!' : `Add to Bag (₹${(product.price * quantity).toLocaleString('en-IN')})`}</span>
+              </button>
 
-                {/* Direct WhatsApp / Telegram Buy */}
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleChannelOrder}
-                  disabled={!product.inStock}
-                  className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
-                    isTelegram 
-                      ? 'bg-sky-500 hover:bg-sky-600' 
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
-                >
-                  {isTelegram ? <Send size={16} /> : <MessageCircle size={18} />}
-                  <span>Order on {channelLabel}</span>
-                </motion.button>
+              <button
+                type="button"
+                onClick={handleChannelOrder}
+                className={`py-3.5 px-4 font-extrabold text-xs sm:text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all ${
+                  isTelegram
+                    ? 'bg-sky-500 hover:bg-sky-600 text-white'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                }`}
+              >
+                {isTelegram ? <Send size={16} /> : <MessageCircle size={16} />}
+                <span>Order on {channelLabel}</span>
+              </button>
+            </div>
+
+            {/* Product Specifications & Care */}
+            <div className="p-4 bg-[#faf8f5] rounded-2xl border border-stone-200 text-xs space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[10px] text-stone-500 uppercase tracking-wider block font-bold">Fabric</span>
+                  <strong className="text-stone-900">{product.fabric || "Pure Silk / Chanderi Cotton"}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-stone-500 uppercase tracking-wider block font-bold">Color / Pattern</span>
+                  <strong className="text-stone-900">{product.color || "Handcrafted Ethnic Zari"}</strong>
+                </div>
               </div>
+              <p className="text-[11px] text-stone-600 pt-2 border-t border-stone-200 leading-relaxed">
+                {product.description || "Handcrafted boutique ensemble with fine threadwork, tailored for festive celebrations and everyday elegance."}
+              </p>
+            </div>
 
-              {/* Trust Badges */}
-              <div className="grid grid-cols-3 gap-2 pt-2 text-[10px] text-stone-500 text-center font-medium">
-                <div className="flex items-center justify-center gap-1">
-                  <ShieldCheck size={13} className="text-amber-800" />
-                  <span>100% Original</span>
-                </div>
-                <div className="flex items-center justify-center gap-1">
-                  <Truck size={13} className="text-[#700b1d]" />
-                  <span>Fast Dispatch</span>
-                </div>
-                <div className="flex items-center justify-center gap-1">
-                  <RefreshCw size={13} className="text-emerald-700" />
-                  <span>Easy Exchange</span>
-                </div>
+            {/* Trust Badges */}
+            <div className="grid grid-cols-3 gap-2 pt-1 text-center text-[10px] font-bold text-stone-600">
+              <div className="p-2.5 bg-white rounded-xl border border-stone-200">
+                <ShieldCheck size={16} className="mx-auto text-emerald-600 mb-0.5" />
+                <span>100% Original</span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-stone-200">
+                <Truck size={16} className="mx-auto text-amber-600 mb-0.5" />
+                <span>Fast Dispatch</span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-stone-200">
+                <RefreshCw size={16} className="mx-auto text-blue-600 mb-0.5" />
+                <span>Easy Exchange</span>
               </div>
             </div>
 
           </div>
 
         </div>
-      </motion.div>
-    </motion.div>
 
-    {/* ========================================================= */}
-    {/* FULLSCREEN HD IMAGE LIGHTBOX & ZOOM VIEWER MODAL          */}
-    {/* ========================================================= */}
-    <AnimatePresence>
+      </div>
+
+      {/* Lightbox Modal for Photo Zoom */}
       {isLightboxOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 select-none"
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
           onClick={() => setIsLightboxOpen(false)}
         >
-          {/* Top Control Bar */}
-          <div 
-            className="flex items-center justify-between z-20 text-white pb-3 border-b border-white/15"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            onClick={() => setIsLightboxOpen(false)}
+            className="absolute top-4 right-4 p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white cursor-pointer z-50"
           >
-            {/* Title & Index */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="font-serif font-bold text-sm sm:text-base text-gold-300 truncate max-w-[200px] sm:max-w-md">
-                {product.name}
-              </span>
-              <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full text-stone-300 font-mono">
-                Photo {selectedImageIndex + 1} of {images.length}
-              </span>
-            </div>
-
-            {/* Zoom Controls & Close */}
-            <div className="flex items-center gap-2">
-              {/* Zoom Out */}
-              <button
-                type="button"
-                onClick={() => setZoomLevel(prev => Math.max(0.75, prev - 0.25))}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer"
-                title="Zoom Out"
-              >
-                <Minus size={17} />
-              </button>
-
-              {/* Reset Zoom */}
-              <button
-                type="button"
-                onClick={() => setZoomLevel(1)}
-                className="px-2.5 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer"
-                title="Reset Zoom"
-              >
-                <span>{Math.round(zoomLevel * 100)}%</span>
-              </button>
-
-              {/* Zoom In */}
-              <button
-                type="button"
-                onClick={() => setZoomLevel(prev => Math.min(3, prev + 0.25))}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer"
-                title="Zoom In"
-              >
-                <Plus size={17} />
-              </button>
-
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={() => setIsLightboxOpen(false)}
-                className="w-9 h-9 rounded-full bg-rose-600/80 hover:bg-rose-600 text-white flex items-center justify-center transition-all cursor-pointer ml-2 shadow-lg"
-                title="Close Lightbox (Esc)"
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-
-          {/* Center Image with Navigation Arrows */}
-          <div 
-            className="relative flex-1 flex items-center justify-center overflow-hidden my-auto"
+            <X size={22} />
+          </button>
+          <img
+            src={normalizeImageUrl(activeImage)}
+            alt={product.name}
+            className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
             onClick={(e) => e.stopPropagation()}
-          >
-            {/* Previous Arrow */}
-            {images.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length)}
-                className="absolute left-2 sm:left-4 z-20 w-11 h-11 rounded-full bg-black/60 hover:bg-[#700b1d] text-white border border-white/20 shadow-xl flex items-center justify-center transition-all cursor-pointer"
-                title="Previous Image (←)"
-              >
-                <ChevronLeft size={24} />
-              </button>
-            )}
-
-            {/* Main Active Zoomable Image */}
-            <motion.div 
-              className="max-h-[78vh] max-w-[92vw] overflow-auto flex items-center justify-center p-2 cursor-grab active:cursor-grabbing"
-              animate={{ scale: zoomLevel }}
-              transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-            >
-              <img
-                src={normalizeImageUrl(activeImage)}
-                alt={product.name}
-                className="max-h-[74vh] max-w-full object-contain rounded-xl shadow-2xl border border-white/10"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                }}
-              />
-            </motion.div>
-
-            {/* Next Arrow */}
-            {images.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setSelectedImageIndex((prev) => (prev + 1) % images.length)}
-                className="absolute right-2 sm:right-4 z-20 w-11 h-11 rounded-full bg-black/60 hover:bg-[#700b1d] text-white border border-white/20 shadow-xl flex items-center justify-center transition-all cursor-pointer"
-                title="Next Image (→)"
-              >
-                <ChevronRight size={24} />
-              </button>
-            )}
-          </div>
-
-          {/* Bottom Thumbnail Selector */}
-          {images.length > 1 && (
-            <div 
-              className="z-20 pt-3 border-t border-white/15 flex items-center justify-center gap-2 overflow-x-auto pb-1"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {images.map((img, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setSelectedImageIndex(idx);
-                    setZoomLevel(1);
-                  }}
-                  className={`w-14 h-18 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
-                    selectedImageIndex === idx 
-                      ? 'border-amber-400 scale-110 shadow-lg ring-2 ring-amber-400/50' 
-                      : 'border-white/20 opacity-50 hover:opacity-100'
-                  }`}
-                >
-                  <img src={normalizeImageUrl(img)} alt="" className="w-full h-full object-cover object-top" />
-                </button>
-              ))}
-            </div>
-          )}
-        </motion.div>
+          />
+        </div>
       )}
-    </AnimatePresence>
-  </>
+    </section>
   );
 };

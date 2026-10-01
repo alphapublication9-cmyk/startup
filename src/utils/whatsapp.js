@@ -49,8 +49,9 @@ export const buildOrderMessage = ({
     discountLines.push(`• Discount Applied: -₹${discount.toLocaleString('en-IN')}`);
   }
 
-  const discountText = discountLines.length > 0 ? `${discountLines.join('\n')}\n` : '';
-  const effectiveSubtotal = (totalPrice + discount);
+  const totalQty = cartItems.reduce((a, c) => a + c.quantity, 0);
+  const luckyDrawQualified = totalQty >= 3;
+  const luckyDrawText = luckyDrawQualified ? `🎁 *FESTIVE LUCKY DRAW:* 100% QUALIFIED (Order of ${totalQty} items entered for Grand Banarasi Saree Giveaway!)\n━━━━━━━━━━━━━━━━━━━━\n` : '';
 
   return `✨ *NEW BOUTIQUE ORDER - ${settings.storeName || 'RADHIKA KURTI COLLECTION'}* ✨
 ━━━━━━━━━━━━━━━━━━━━
@@ -61,7 +62,7 @@ export const buildOrderMessage = ({
 • City/State: ${customer.city || ''} ${customer.state || ''}
 • Pincode: ${customer.pincode || 'Not provided'}
 ${customer.paymentMethod ? `• Payment Mode: ${customer.paymentMethod}\n` : ''}${customer.notes ? `• Special Notes: ${customer.notes}\n` : ''}━━━━━━━━━━━━━━━━━━━━
-🛍️ *ITEMS IN CART (${cartItems.reduce((a, c) => a + c.quantity, 0)} Items)*
+🛍️ *ITEMS IN CART (${totalQty} Items)*
 
 ${itemsListText}
 
@@ -71,7 +72,7 @@ ${itemsListText}
 ${discountText}• Delivery Charges: Confirmed on WhatsApp (as per location)
 ⭐ *ITEM TOTAL:* *₹${totalPrice.toLocaleString('en-IN')}*
 ━━━━━━━━━━━━━━━━━━━━
-💬 *Please confirm item availability, dispatch schedule & share tracking details! Thank you!* 🙏🌸`;
+${luckyDrawText}💬 *Please confirm item availability, dispatch schedule & share tracking details! Thank you!* 🙏🌸`;
 };
 
 /**
