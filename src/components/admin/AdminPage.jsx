@@ -64,13 +64,16 @@ import {
   Award,
   Dice5,
   Sparkle,
-  Share2
+  Share2,
+  Link2,
+  Globe
 } from 'lucide-react';
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
 import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
+import { fetchAndParseAmazonProduct, parsePastedProductText } from '../../utils/amazonImporter';
 import { getProductAnalyticsList, resetProductAnalytics, fetchAndMergeCloudAnalytics } from '../../utils/productAnalytics';
 import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV, fetchCloudCustomers } from '../../utils/customerDirectory';
 import { 
@@ -179,6 +182,14 @@ export const AdminPage = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+
+  // ⚡ Amazon 1-Click Product Auto-Extractor State
+  const [amazonUrlInput, setAmazonUrlInput] = useState('');
+  const [amazonPasteInput, setAmazonPasteInput] = useState('');
+  const [amazonImportTab, setAmazonImportTab] = useState('url'); // 'url' | 'paste'
+  const [isExtractingAmazon, setIsExtractingAmazon] = useState(false);
+  const [amazonExtractError, setAmazonExtractError] = useState('');
+  const [amazonExtractSuccess, setAmazonExtractSuccess] = useState('');
 
   // Category Add / Edit Modal State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -919,8 +930,16 @@ export const AdminPage = ({
     }
   };
 
-  // Open Add/Edit Product Modal (Supports 3-4+ Images)
-  const handleOpenEditProduct = (product = null) => {
+  // Open Add/Edit Product Modal (Supports 3-4+ Images & 1-Click Amazon Import)
+  const handleOpenEditProduct = (product = null, startWithImporter = false) => {
+    setAmazonUrlInput('');
+    setAmazonPasteInput('');
+    setAmazonExtractError('');
+    setAmazonExtractSuccess('');
+    if (startWithImporter) {
+      setAmazonImportTab('url');
+    }
+
     if (product) {
       setEditingProduct(product);
       const rawImgs = Array.isArray(product.images) && product.images.length > 0 
@@ -959,6 +978,107 @@ export const AdminPage = ({
       });
     }
     setIsEditModalOpen(true);
+  };
+
+  // ⚡ 1-Click Amazon / E-Commerce Product Auto-Extractor Handler
+  const handleExtractAmazonProduct = async (e) => {
+    if (e) e.preventDefault();
+    if (!amazonUrlInput.trim()) {
+      setAmazonExtractError('Please enter a valid Amazon product URL.');
+      return;
+    }
+
+    setIsExtractingAmazon(true);
+    setAmazonExtractError('');
+    setAmazonExtractSuccess('');
+
+    try {
+      const extracted = await fetchAndParseAmazonProduct(amazonUrlInput.trim());
+      
+      // Auto-match category
+      let matchedCategory = formData.category || 'Kurtis & Suits';
+      const availableCatNames = categories.map(c => typeof c === 'string' ? c : c.name);
+      if (extracted.category && availableCatNames.includes(extracted.category)) {
+        matchedCategory = extracted.category;
+      } else if (availableCatNames.length > 0) {
+        matchedCategory = availableCatNames[0];
+      }
+
+      const validImages = Array.isArray(extracted.images) && extracted.images.length > 0 
+        ? extracted.images.filter(Boolean) 
+        : [extracted.image].filter(Boolean);
+
+      setFormData(prev => ({
+        ...prev,
+        name: extracted.name || prev.name,
+        price: extracted.price || prev.price,
+        originalPrice: extracted.originalPrice || prev.originalPrice,
+        image: validImages[0] || prev.image,
+        images: validImages.length > 0 ? validImages : prev.images,
+        fabric: extracted.fabric || prev.fabric,
+        color: extracted.color || prev.color,
+        category: matchedCategory,
+        description: extracted.description || prev.description,
+        badge: extracted.badge || prev.badge,
+        offer: extracted.offer || prev.offer,
+        sizes: extracted.sizes || prev.sizes || ['S', 'M', 'L', 'XL', 'XXL']
+      }));
+
+      const photoCount = validImages.length;
+      setAmazonExtractSuccess(`🎉 Success! Auto-extracted ${photoCount} HD Photo(s), Name, Price (₹${extracted.price}), MRP (₹${extracted.originalPrice}), Fabric & details! Review below and click Save.`);
+    } catch (err) {
+      console.error("Amazon extract error:", err);
+      setAmazonExtractError(err.message || "Could not auto-extract from this link. Try pasting the product description / text in the 'Smart Paste' tab!");
+    } finally {
+      setIsExtractingAmazon(false);
+    }
+  };
+
+  // 📋 Smart Text / Share Parser Handler
+  const handleParsePastedProductText = () => {
+    if (!amazonPasteInput.trim()) {
+      setAmazonExtractError('Please paste product details or text to parse.');
+      return;
+    }
+
+    setAmazonExtractError('');
+    setAmazonExtractSuccess('');
+
+    try {
+      const extracted = parsePastedProductText(amazonPasteInput.trim());
+      
+      let matchedCategory = formData.category || 'Kurtis & Suits';
+      const availableCatNames = categories.map(c => typeof c === 'string' ? c : c.name);
+      if (extracted.category && availableCatNames.includes(extracted.category)) {
+        matchedCategory = extracted.category;
+      } else if (availableCatNames.length > 0) {
+        matchedCategory = availableCatNames[0];
+      }
+
+      const validImages = Array.isArray(extracted.images) && extracted.images.length > 0 
+        ? extracted.images.filter(Boolean) 
+        : [extracted.image].filter(Boolean);
+
+      setFormData(prev => ({
+        ...prev,
+        name: extracted.name || prev.name,
+        price: extracted.price || prev.price,
+        originalPrice: extracted.originalPrice || prev.originalPrice,
+        image: validImages[0] || prev.image,
+        images: validImages.length > 0 ? validImages : prev.images,
+        fabric: extracted.fabric || prev.fabric,
+        color: extracted.color || prev.color,
+        category: matchedCategory,
+        description: extracted.description || prev.description,
+        badge: extracted.badge || prev.badge,
+        offer: extracted.offer || prev.offer,
+        sizes: extracted.sizes || prev.sizes || ['S', 'M', 'L', 'XL', 'XXL']
+      }));
+
+      setAmazonExtractSuccess(`🎉 Parsed successfully! Auto-filled Product Name, Price (₹${extracted.price}), MRP (₹${extracted.originalPrice}), and details!`);
+    } catch (err) {
+      setAmazonExtractError(err.message || "Failed to parse pasted text.");
+    }
   };
 
   // Multi-Image Gallery Handlers for Product
@@ -2146,9 +2266,21 @@ export const AdminPage = ({
                   })}
                 </select>
 
+                {/* 1-CLICK AMAZON / LINK IMPORT BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditProduct(null, true)}
+                  className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 border border-amber-300"
+                  title="1-Click Amazon / E-Commerce Product Auto-Extractor"
+                >
+                  <Zap size={15} className="text-stone-950 fill-stone-950" />
+                  <span>1-Click Amazon Import</span>
+                </button>
+
                 {/* ADD NEW PRODUCT BUTTON */}
                 <button
-                  onClick={() => handleOpenEditProduct(null)}
+                  type="button"
+                  onClick={() => handleOpenEditProduct(null, false)}
                   className="px-5 py-2.5 royal-maroon-bg text-gold-100 font-bold text-xs rounded-xl shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                 >
                   <Plus size={16} />
@@ -4797,6 +4929,160 @@ export const AdminPage = ({
               >
                 <X size={20} />
               </button>
+            </div>
+
+            {/* ⚡ 1-CLICK AMAZON / E-COMMERCE PRODUCT AUTO-IMPORTER */}
+            <div className="mb-5 p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-rose-500/5 to-amber-500/10 rounded-3xl border-2 border-amber-400/80 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-200/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 text-stone-950 flex items-center justify-center font-black shadow-xs">
+                    <Zap size={16} className="fill-stone-950 text-stone-950" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-stone-900 text-xs sm:text-sm flex items-center gap-1.5">
+                      <span>Amazon / E-Commerce 1-Click Auto Importer</span>
+                      <span className="bg-amber-400 text-stone-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Fast Extract
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-stone-600">
+                      Paste an Amazon link to auto-fetch HD Photos, Title, Price, MRP, Fabric & Details in 1 second!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab Switcher: URL vs Smart Text Paste */}
+                <div className="flex items-center bg-white/90 p-0.5 rounded-xl border border-amber-300 text-[11px] font-bold self-start sm:self-auto shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAmazonImportTab('url');
+                      setAmazonExtractError('');
+                    }}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      amazonImportTab === 'url' ? 'bg-stone-900 text-gold-100 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    🔗 Link / URL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAmazonImportTab('paste');
+                      setAmazonExtractError('');
+                    }}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      amazonImportTab === 'paste' ? 'bg-stone-900 text-gold-100 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    📋 Smart Paste
+                  </button>
+                </div>
+              </div>
+
+              {/* URL Input Mode */}
+              {amazonImportTab === 'url' ? (
+                <div className="mt-3 space-y-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="url"
+                        placeholder="Paste Amazon product link (e.g. https://www.amazon.in/dp/... or amzn.in/...)"
+                        value={amazonUrlInput}
+                        onChange={(e) => setAmazonUrlInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleExtractAmazonProduct();
+                          }
+                        }}
+                        disabled={isExtractingAmazon}
+                        className="w-full pl-8 pr-3 py-2.5 bg-white border border-amber-300 rounded-xl text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                      />
+                      <Link2 size={14} className="absolute left-2.5 top-3.5 text-stone-400" />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleExtractAmazonProduct}
+                      disabled={isExtractingAmazon || !amazonUrlInput.trim()}
+                      className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-[#700b1d] text-gold-100 hover:text-white font-extrabold text-xs rounded-xl shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0"
+                    >
+                      {isExtractingAmazon ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-gold-200 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Extracting Amazon Data...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap size={14} className="text-amber-300 fill-amber-300" />
+                          <span>Auto-Fill All Details</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] text-stone-500 flex items-center gap-1">
+                    💡 Works with Amazon India, Amazon US, and short links (amzn.in, amzn.to). Extracts multi-angle HD photos automatically.
+                  </p>
+                </div>
+              ) : (
+                /* Smart Text Paste Mode */
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    rows={3}
+                    placeholder="Paste product description, title, price (e.g. ₹999), fabric, or WhatsApp share text from Amazon..."
+                    value={amazonPasteInput}
+                    onChange={(e) => setAmazonPasteInput(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-amber-300 rounded-xl text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-amber-600 shadow-2xs font-mono"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleParsePastedProductText}
+                      disabled={!amazonPasteInput.trim()}
+                      className="px-4 py-2 royal-maroon-bg text-gold-100 font-bold text-xs rounded-xl shadow-sm hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                      <Sparkles size={14} className="text-amber-300" />
+                      <span>Parse & Auto-Fill Form</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Success Banner */}
+              {amazonExtractSuccess && (
+                <div className="mt-3 p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-semibold flex items-start gap-2 animate-fadeIn">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span>{amazonExtractSuccess}</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setAmazonExtractSuccess('')}
+                    className="text-emerald-700 hover:text-emerald-900 text-xs font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {amazonExtractError && (
+                <div className="mt-3 p-3 bg-rose-50 border border-rose-300 rounded-2xl text-rose-900 text-xs font-semibold flex items-start gap-2 animate-fadeIn">
+                  <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span>{amazonExtractError}</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setAmazonExtractError('')}
+                    className="text-rose-700 hover:text-rose-900 text-xs font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
