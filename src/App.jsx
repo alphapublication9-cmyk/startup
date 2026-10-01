@@ -30,6 +30,7 @@ import { WhatsAppCheckoutModal } from './components/WhatsAppCheckoutModal';
 import { SpinWheelModal } from './components/SpinWheelModal';
 import { CustomerAccountModal } from './components/CustomerAccountModal';
 import { CustomerReviews } from './components/CustomerReviews';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { AdminPage } from './components/admin/AdminPage';
 import { Footer } from './components/Footer';
 import { getSpinWheelConfig, fetchCloudSpinWheelConfig } from './utils/spinWheel';
@@ -499,7 +500,7 @@ export function App() {
   // RENDER CUSTOMER STOREFRONT (Zara / H&M Luxury Fashion Aesthetic)
   // =========================================================================
   return (
-    <div className="min-h-screen flex flex-col bg-[#faf7f2]">
+    <div className="min-h-screen flex flex-col bg-[#faf7f2] pb-16 md:pb-0">
       
       {/* Header & Navigation */}
       <Navbar
@@ -703,13 +704,13 @@ export function App() {
 
       </main>
 
-      {/* Floating WhatsApp / Telegram Quick Action Button */}
+      {/* Floating WhatsApp / Telegram Quick Action Button (Desktop Only - Mobile has Bottom Nav) */}
       {!isCartOpen && !isCheckoutOpen && !quickViewProduct && (
         <a
           href={getDirectChannelLink(settings, `Hello ${settings.storeName || 'Radhika Kurti Collection'}! I would like to inquire about your Women Fashion Collection`)}
           target="_blank"
           rel="noopener noreferrer"
-          className={`fixed bottom-6 right-6 z-40 text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all duration-300 border-2 border-white group cursor-pointer ${
+          className={`hidden sm:flex fixed bottom-6 right-6 z-40 text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl items-center gap-2 hover:scale-105 active:scale-95 transition-all duration-300 border-2 border-white group cursor-pointer ${
             settings.orderChannel === 'telegram'
               ? 'bg-sky-500 hover:bg-sky-600'
               : 'bg-emerald-600 hover:bg-emerald-700'
@@ -805,6 +806,16 @@ export function App() {
         settings={settings}
         onSelectCategory={setSelectedCategory}
         categories={categories}
+      />
+
+      {/* 📱 Native Mobile App Docked Bottom Navigation Bar */}
+      <MobileBottomNav
+        cartCount={totalCartCount}
+        onOpenCart={() => setIsCartOpen(true)}
+        onOpenSpinWheel={() => setIsSpinWheelOpen(true)}
+        onOpenCustomerAccount={() => setIsCustomerAccountOpen(true)}
+        onScrollToCatalog={scrollToCatalog}
+        settings={settings}
       />
 
     </div>
