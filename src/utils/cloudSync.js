@@ -494,6 +494,7 @@ export const fetchCloudOrders = async () => {
         id: o.id,
         customer: o.customer || {},
         items: o.items || [],
+        totalAmount: Number(o.grand_total || 0),
         grandTotal: Number(o.grand_total || 0),
         status: o.status || 'Received',
         createdAt: o.created_at
@@ -507,21 +508,46 @@ export const fetchCloudOrders = async () => {
 };
 
 export const recordCloudOrder = async (order) => {
+  if (!order || !order.id) return;
   saveLocalOrder(order);
   const supabase = getSupabase();
   if (!supabase) return;
 
   try {
-    await supabase.from('orders').insert({
+    await supabase.from('orders').upsert([{
       id: order.id,
-      customer: order.customer,
-      items: order.items,
-      grand_total: order.grandTotal,
+      customer: order.customer || {},
+      items: order.items || [],
+      grand_total: Number(order.totalAmount || order.grandTotal || 0),
       status: order.status || 'Received',
       created_at: order.createdAt || new Date().toISOString()
-    });
+    }], { onConflict: 'id' });
   } catch (err) {
     console.error("Error saving cloud order:", err);
+  }
+};
+
+export const deleteCloudOrder = async (orderId) => {
+  if (!orderId) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('orders').delete().eq('id', String(orderId));
+  } catch (err) {
+    console.error("Error deleting cloud order:", err);
+  }
+};
+
+export const updateCloudOrderStatus = async (orderId, newStatus) => {
+  if (!orderId || !newStatus) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('orders').update({ status: newStatus }).eq('id', String(orderId));
+  } catch (err) {
+    console.error("Error updating cloud order status:", err);
   }
 };
 
@@ -702,13 +728,40 @@ CREATE TABLE IF NOT EXISTS public.orders (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 8. Enable Row Level Security (RLS) and Public Read/Write Access
+-- 8. Customer Leads / Directory Table
+CREATE TABLE IF NOT EXISTS public.customers (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  phone TEXT,
+  address TEXT,
+  city TEXT,
+  pincode TEXT,
+  total_orders INTEGER DEFAULT 0,
+  total_spent NUMERIC DEFAULT 0,
+  last_active_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 9. Product Engagement & View Analytics Table
+CREATE TABLE IF NOT EXISTS public.analytics (
+  product_id TEXT PRIMARY KEY,
+  views INTEGER DEFAULT 0,
+  quick_views INTEGER DEFAULT 0,
+  cart_adds INTEGER DEFAULT 0,
+  orders INTEGER DEFAULT 0,
+  name TEXT,
+  category TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 10. Enable Row Level Security (RLS) and Public Read/Write Access
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.analytics ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public read on products" ON public.products;
 DROP POLICY IF EXISTS "Allow all on products" ON public.products;
@@ -739,4 +792,14 @@ DROP POLICY IF EXISTS "Allow public read on orders" ON public.orders;
 DROP POLICY IF EXISTS "Allow all on orders" ON public.orders;
 CREATE POLICY "Allow public read on orders" ON public.orders FOR SELECT USING (true);
 CREATE POLICY "Allow all on orders" ON public.orders FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read on customers" ON public.customers;
+DROP POLICY IF EXISTS "Allow all on customers" ON public.customers;
+CREATE POLICY "Allow public read on customers" ON public.customers FOR SELECT USING (true);
+CREATE POLICY "Allow all on customers" ON public.customers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read on analytics" ON public.analytics;
+DROP POLICY IF EXISTS "Allow all on analytics" ON public.analytics;
+CREATE POLICY "Allow public read on analytics" ON public.analytics FOR SELECT USING (true);
+CREATE POLICY "Allow all on analytics" ON public.analytics FOR ALL USING (true) WITH CHECK (true);
 `;

@@ -192,9 +192,18 @@ export const getProductAnalyticsList = (allProducts = []) => {
 };
 
 /**
- * Reset all analytics
+ * Reset all analytics (Local + Cloud Supabase)
  */
-export const resetProductAnalytics = () => {
+export const resetProductAnalytics = async () => {
   localStorage.removeItem(PRODUCT_ANALYTICS_KEY);
   idbSet(PRODUCT_ANALYTICS_KEY, {});
+
+  try {
+    const supabase = getSupabase();
+    if (supabase) {
+      await supabase.from('analytics').delete().neq('product_id', '_none_');
+    }
+  } catch (err) {
+    console.warn("Supabase analytics reset error:", err);
+  }
 };

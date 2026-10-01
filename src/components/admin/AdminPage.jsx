@@ -72,7 +72,7 @@ import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
 import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
 import { getProductAnalyticsList, resetProductAnalytics, fetchAndMergeCloudAnalytics } from '../../utils/productAnalytics';
-import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV } from '../../utils/customerDirectory';
+import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV, fetchCloudCustomers } from '../../utils/customerDirectory';
 import { 
   getLuckyDrawConfig, 
   fetchCloudLuckyDrawConfig,
@@ -237,6 +237,10 @@ export const AdminPage = ({
       fetchAndMergeCloudAnalytics().then(() => {
         setAnalyticsList(getProductAnalyticsList(products));
       }).catch(() => {});
+    } else if (activeTab === 'customers') {
+      fetchCloudCustomers().then((fresh) => {
+        if (fresh && fresh.length > 0) setCustomers(fresh);
+      }).catch(() => {});
     }
   }, [products, activeTab]);
 
@@ -251,9 +255,9 @@ export const AdminPage = ({
     setAnalyticsLoading(false);
   };
 
-  const handleResetAnalytics = () => {
+  const handleResetAnalytics = async () => {
     if (window.confirm("Are you sure you want to reset all product view and click analytics?")) {
-      resetProductAnalytics();
+      await resetProductAnalytics();
       setAnalyticsList(getProductAnalyticsList(products));
     }
   };

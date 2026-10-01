@@ -20,6 +20,50 @@ export const getStoredCustomers = () => {
 };
 
 /**
+ * Fetch all customer leads from Supabase and merge with local
+ */
+export const fetchCloudCustomers = async () => {
+  const supabase = getSupabase();
+  if (!supabase) return getStoredCustomers();
+
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('last_active_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      const current = getStoredCustomers();
+      const map = new Map();
+      current.forEach(c => map.set(c.id, c));
+      data.forEach(row => {
+        const existing = map.get(row.id) || {};
+        map.set(row.id, {
+          ...existing,
+          id: row.id,
+          name: row.name || existing.name || '',
+          phone: row.phone || existing.phone || '',
+          address: row.address || existing.address || '',
+          city: row.city || existing.city || '',
+          pincode: row.pincode || existing.pincode || '',
+          preferredPayment: existing.preferredPayment || 'COD',
+          totalOrders: Math.max(Number(existing.totalOrders || 0), Number(row.total_orders || 0)),
+          totalSpent: Math.max(Number(existing.totalSpent || 0), Number(row.total_spent || 0)),
+          lastActiveAt: row.last_active_at || existing.lastActiveAt,
+          orderHistory: existing.orderHistory || []
+        });
+      });
+      const merged = Array.from(map.values());
+      saveStoredCustomers(merged);
+      return merged;
+    }
+  } catch (err) {
+    console.error("Cloud customers load error:", err);
+  }
+  return getStoredCustomers();
+};
+
+/**
  * Saves customer directory array to storage
  */
 export const saveStoredCustomers = (customers) => {

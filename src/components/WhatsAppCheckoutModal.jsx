@@ -15,6 +15,7 @@ import {
 import confetti from 'canvas-confetti';
 import { generateOrderUrlByChannel, cleanTelegramHandle } from '../utils/whatsapp';
 import { saveNewOrder } from '../utils/storage';
+import { recordCloudOrder } from '../utils/cloudSync';
 import { recordCustomerLead } from '../utils/customerDirectory';
 import { trackProductAction } from '../utils/productAnalytics';
 
@@ -128,6 +129,7 @@ export const WhatsAppCheckoutModal = ({
       status: `${activeChannelName} Inquiry Sent`
     };
     saveNewOrder(newOrder);
+    recordCloudOrder(newOrder);
 
     // Save full customer delivery profile in Customer Directory
     recordCustomerLead(customer, {
