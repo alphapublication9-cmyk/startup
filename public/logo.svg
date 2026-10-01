@@ -1,160 +1,76 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Background Royal Gradient -->
-    <radialGradient id="bgGrad" cx="50%" cy="45%" r="65%">
-      <stop offset="0%" stop-color="#580816"/>
-      <stop offset="60%" stop-color="#3b030c"/>
-      <stop offset="100%" stop-color="#200106"/>
-    </radialGradient>
-
     <!-- Metallic Gold Gradient -->
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fcedb4"/>
-      <stop offset="25%" stop-color="#d4af37"/>
-      <stop offset="50%" stop-color="#aa7c11"/>
-      <stop offset="75%" stop-color="#e8c85a"/>
-      <stop offset="100%" stop-color="#b8860b"/>
+      <stop offset="0%" stop-color="#fff5cc"/>
+      <stop offset="25%" stop-color="#f5d061"/>
+      <stop offset="50%" stop-color="#d4af37"/>
+      <stop offset="75%" stop-color="#aa7c11"/>
+      <stop offset="100%" stop-color="#e5c158"/>
     </linearGradient>
 
-    <!-- Soft Gold Radial -->
-    <radialGradient id="goldGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#fcedb4" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
-    </radialGradient>
+    <!-- Deep Gold Shadow -->
+    <linearGradient id="goldDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#8a6308"/>
+    </linearGradient>
 
-    <!-- Drop Shadow Filter -->
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.6"/>
-    </filter>
-    
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    <!-- Glow & Shadow Filter -->
+    <filter id="royalShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#700b1d" flood-opacity="0.35"/>
     </filter>
   </defs>
 
-  <!-- Background Canvas -->
-  <rect width="800" height="800" rx="400" fill="url(#bgGrad)"/>
-  
-  <!-- Outer Filigree Rings -->
-  <circle cx="400" cy="400" r="375" fill="none" stroke="url(#goldGrad)" stroke-width="3" opacity="0.6"/>
-  <circle cx="400" cy="400" r="365" fill="none" stroke="url(#goldGrad)" stroke-width="1.5" stroke-dasharray="6,6" opacity="0.8"/>
-  <circle cx="400" cy="400" r="350" fill="none" stroke="url(#goldGrad)" stroke-width="4"/>
+  <g filter="url(#royalShadow)" transform="translate(256, 256) scale(1.15)">
+    <!-- Crown Base Arch -->
+    <path d="M -140 100 Q 0 120 140 100 L 130 65 Q 0 85 -130 65 Z" fill="url(#goldDark)"/>
+    <path d="M -130 65 Q 0 85 130 65 L 125 45 Q 0 65 -125 45 Z" fill="url(#goldGrad)"/>
 
-  <!-- Radial Glow Behind Monogram -->
-  <circle cx="400" cy="360" r="220" fill="url(#goldGlow)"/>
-
-  <!-- Top Royal Crown -->
-  <g transform="translate(400, 165) scale(0.9)" filter="url(#shadow)">
-    <path d="M -80 50 L -90 0 L -40 30 L 0 -25 L 40 30 L 90 0 L 80 50 Z" fill="url(#goldGrad)"/>
-    <circle cx="-90" cy="-3" r="8" fill="#fff" stroke="#d4af37" stroke-width="2"/>
-    <circle cx="-40" cy="27" r="7" fill="#fff" stroke="#d4af37" stroke-width="2"/>
-    <circle cx="0" cy="-28" r="10" fill="#fff" stroke="#d4af37" stroke-width="2"/>
-    <circle cx="40" cy="27" r="7" fill="#fff" stroke="#d4af37" stroke-width="2"/>
-    <circle cx="90" cy="-3" r="8" fill="#fff" stroke="#d4af37" stroke-width="2"/>
-    <!-- Crown Jewels -->
-    <circle cx="-45" cy="40" r="5" fill="#700b1d"/>
-    <circle cx="0" cy="40" r="6" fill="#700b1d"/>
-    <circle cx="45" cy="40" r="5" fill="#700b1d"/>
-    <rect x="-82" y="48" width="164" height="6" rx="3" fill="#fcedb4"/>
-  </g>
-
-  <!-- Central Emblem Crest Frame -->
-  <circle cx="400" cy="365" r="155" fill="none" stroke="url(#goldGrad)" stroke-width="3.5" filter="url(#shadow)"/>
-  <circle cx="400" cy="365" r="145" fill="none" stroke="url(#goldGrad)" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.9"/>
-
-  <!-- Majestic Letter 'R' Monogram -->
-  <g transform="translate(400, 365)" filter="url(#shadow)">
-    <!-- Main Stylized Monogram R -->
+    <!-- Main Crown Peaks -->
     <path d="
-      M -55 -85 
-      L 15 -85 
-      C 60 -85, 75 -65, 75 -25 
-      C 75 15, 55 35, 10 38 
-      L 65 95 
-      L 25 95 
-      L -25 38 
-      L -25 95 
-      L -55 95 
-      Z
-      M -25 -55 
-      L -25 10 
-      L 10 10 
-      C 35 10, 45 0, 45 -22 
-      C 45 -45, 35 -55, 10 -55 
+      M -125 45 
+      L -160 -40 
+      L -75 5 
+      L 0 -95 
+      L 75 5 
+      L 160 -40 
+      L 125 45 
+      Q 0 65 -125 45 
       Z
     " fill="url(#goldGrad)"/>
 
-    <!-- Flourish Petal & Sparkle on R -->
-    <path d="M -55 -85 C -80 -105, -50 -130, -25 -105 C -35 -95, -45 -90, -55 -85 Z" fill="url(#goldGrad)"/>
-    <circle cx="5" cy="-22" r="5" fill="#fff" opacity="0.9"/>
+    <!-- Inner Shading on Central Peak -->
+    <path d="M 0 -95 L 35 15 L 0 50 L -35 15 Z" fill="url(#goldDark)" opacity="0.35"/>
+
+    <!-- Crown Jewels on Peaks -->
+    <!-- Center Jewel (Big Diamond) -->
+    <circle cx="0" cy="-100" r="14" fill="#ffffff" stroke="#d4af37" stroke-width="3"/>
+    <circle cx="0" cy="-100" r="7" fill="#f5d061"/>
+
+    <!-- Side Left Jewel -->
+    <circle cx="-160" cy="-45" r="11" fill="#ffffff" stroke="#d4af37" stroke-width="2.5"/>
+    <circle cx="-160" cy="-45" r="5" fill="#f5d061"/>
+
+    <!-- Side Right Jewel -->
+    <circle cx="160" cy="-45" r="11" fill="#ffffff" stroke="#d4af37" stroke-width="2.5"/>
+    <circle cx="160" cy="-45" r="5" fill="#f5d061"/>
+
+    <!-- Mid Left Peak Jewel -->
+    <circle cx="-75" cy="0" r="9" fill="#ffffff" stroke="#d4af37" stroke-width="2"/>
+    <circle cx="-75" cy="0" r="4" fill="#f5d061"/>
+
+    <!-- Mid Right Peak Jewel -->
+    <circle cx="75" cy="0" r="9" fill="#ffffff" stroke="#d4af37" stroke-width="2"/>
+    <circle cx="75" cy="0" r="4" fill="#f5d061"/>
+
+    <!-- Base Ruby & Emerald Insets -->
+    <circle cx="-80" cy="85" r="6" fill="#700b1d" stroke="#f5d061" stroke-width="1.5"/>
+    <circle cx="-40" cy="90" r="5" fill="#ffffff" stroke="#f5d061" stroke-width="1.5"/>
+    <circle cx="0" cy="92" r="8" fill="#700b1d" stroke="#f5d061" stroke-width="2"/>
+    <circle cx="40" cy="90" r="5" fill="#ffffff" stroke="#f5d061" stroke-width="1.5"/>
+    <circle cx="80" cy="85" r="6" fill="#700b1d" stroke="#f5d061" stroke-width="1.5"/>
+
+    <!-- Sparkle Stars -->
+    <path d="M 0 -130 Q 0 -115 15 -115 Q 0 -115 0 -100 Q 0 -115 -15 -115 Q 0 -115 0 -130 Z" fill="#ffffff" opacity="0.9"/>
   </g>
-
-  <!-- Left & Right Royal Laurel Leaves -->
-  <g fill="url(#goldGrad)" opacity="0.85">
-    <!-- Left Leaves -->
-    <path d="M 210 360 Q 200 330 220 310 Q 230 335 210 360 Z"/>
-    <path d="M 205 385 Q 185 365 195 340 Q 215 365 205 385 Z"/>
-    <path d="M 215 415 Q 195 405 195 380 Q 220 395 215 415 Z"/>
-    
-    <!-- Right Leaves -->
-    <path d="M 590 360 Q 600 330 580 310 Q 570 335 590 360 Z"/>
-    <path d="M 595 385 Q 615 365 605 340 Q 585 365 595 385 Z"/>
-    <path d="M 585 415 Q 605 405 605 380 Q 580 395 585 415 Z"/>
-  </g>
-
-  <!-- Main Store Name: RADHIKA -->
-  <g filter="url(#shadow)">
-    <text 
-      x="400" 
-      y="575" 
-      text-anchor="middle" 
-      font-family="'Playfair Display', 'Cinzel', 'Georgia', 'Times New Roman', serif" 
-      font-size="64" 
-      font-weight="900" 
-      letter-spacing="14" 
-      fill="url(#goldGrad)"
-    >
-      RADHIKA
-    </text>
-  </g>
-
-  <!-- Gold Ribbon Underline with Diamonds -->
-  <g transform="translate(400, 600)">
-    <line x1="-240" y1="0" x2="-25" y2="0" stroke="url(#goldGrad)" stroke-width="2"/>
-    <polygon points="0,-7 7,0 0,7 -7,0" fill="url(#goldGrad)"/>
-    <circle cx="-15" cy="0" r="3" fill="url(#goldGrad)"/>
-    <circle cx="15" cy="0" r="3" fill="url(#goldGrad)"/>
-    <line x1="25" y1="0" x2="240" y2="0" stroke="url(#goldGrad)" stroke-width="2"/>
-  </g>
-
-  <!-- Sub-Heading: KURTI COLLECTION -->
-  <text 
-    x="400" 
-    y="645" 
-    text-anchor="middle" 
-    font-family="'Montserrat', 'Cinzel', 'Arial', sans-serif" 
-    font-size="26" 
-    font-weight="800" 
-    letter-spacing="9" 
-    fill="#fcedb4"
-  >
-    KURTI COLLECTION
-  </text>
-
-  <!-- Quality Stamp: HAUTE ETHNIC COUTURE • JAIPUR -->
-  <text 
-    x="400" 
-    y="685" 
-    text-anchor="middle" 
-    font-family="'Montserrat', 'Arial', sans-serif" 
-    font-size="14" 
-    font-weight="600" 
-    letter-spacing="5" 
-    fill="#e5c158" 
-    opacity="0.9"
-  >
-    PREMIUM ETHNIC COUTURE • JAIPUR
-  </text>
-
 </svg>
