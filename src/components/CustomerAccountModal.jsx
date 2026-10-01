@@ -33,6 +33,7 @@ import {
   getUserDrawEligibility,
   getLuckyDrawConfig
 } from '../utils/luckyDraw';
+import { recordCustomerLead } from '../utils/customerDirectory';
 
 export const CustomerAccountModal = ({ 
   isOpen, 
@@ -74,6 +75,12 @@ export const CustomerAccountModal = ({
         return;
       }
       setSessionUser(res.user);
+      recordCustomerLead({
+        name: res.user.name,
+        phone: res.user.phone,
+        city: res.user.city || formData.city,
+        address: res.user.address || formData.address
+      });
       setAuthSuccess(`Welcome ${res.user.name}! Your account & Ticket #${res.user.ticketNumber} created successfully.`);
     } else {
       const res = loginLuckyDrawUser(formData.phone, formData.password);
@@ -82,6 +89,12 @@ export const CustomerAccountModal = ({
         return;
       }
       setSessionUser(res.user);
+      recordCustomerLead({
+        name: res.user.name,
+        phone: res.user.phone,
+        city: res.user.city || '',
+        address: res.user.address || ''
+      });
       setAuthSuccess(`Welcome back ${res.user.name}!`);
     }
   };

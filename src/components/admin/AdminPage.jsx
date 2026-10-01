@@ -299,6 +299,8 @@ export const AdminPage = ({
         (c.address && c.address.toLowerCase().includes(q));
       if (!match) return false;
     }
+    if (selectedCustomerFilter === 'Orders') return (c.totalOrders || 0) > 0;
+    if (selectedCustomerFilter === 'Leads') return (c.totalOrders || 0) === 0;
     if (selectedCustomerFilter === 'Repeat') return (c.totalOrders || 0) > 1;
     if (selectedCustomerFilter === 'COD') return c.preferredPayment === 'Cash on Delivery' || c.preferredPayment === 'COD';
     if (selectedCustomerFilter === 'Prepaid') return c.preferredPayment === 'Prepaid' || c.preferredPayment === 'UPI';
@@ -2984,14 +2986,30 @@ export const AdminPage = ({
                 </p>
               </div>
 
-              <button
-                onClick={exportCustomersToCSV}
-                disabled={customers.length === 0}
-                className="px-5 py-3 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 text-brand-950 font-extrabold text-xs rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer active:scale-95 disabled:opacity-50"
-              >
-                <FileSpreadsheet size={16} />
-                <span>Export Customer Leads (CSV)</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const fresh = await fetchCloudCustomers();
+                    if (fresh) setCustomers(fresh);
+                    setSaveSuccessMsg("✅ Customer leads synced live from Supabase Cloud!");
+                    setTimeout(() => setSaveSuccessMsg(''), 3000);
+                  }}
+                  className="px-4 py-3 bg-stone-800 hover:bg-stone-700 text-gold-300 font-bold text-xs rounded-2xl border border-stone-700 flex items-center gap-1.5 cursor-pointer transition-all shadow-md"
+                  title="Fetch latest customer leads from Supabase"
+                >
+                  <RotateCcw size={14} />
+                  <span>Sync Leads</span>
+                </button>
+                <button
+                  onClick={exportCustomersToCSV}
+                  disabled={customers.length === 0}
+                  className="px-5 py-3 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 text-brand-950 font-extrabold text-xs rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  <FileSpreadsheet size={16} />
+                  <span>Export Leads (CSV)</span>
+                </button>
+              </div>
             </div>
 
             {/* Search & Filter Bar */}
@@ -3014,7 +3032,9 @@ export const AdminPage = ({
                   onChange={(e) => setSelectedCustomerFilter(e.target.value)}
                   className="px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-800 focus:outline-none focus:border-brand-700 cursor-pointer"
                 >
-                  <option value="All">All Customer Leads</option>
+                  <option value="All">All Customer Records ({customers.length})</option>
+                  <option value="Orders">🛍️ Orders Placed / Buyers ({customers.filter(c => (c.totalOrders || 0) > 0).length})</option>
+                  <option value="Leads">📍 Checkout Visitors / Leads ({customers.filter(c => (c.totalOrders || 0) === 0).length})</option>
                   <option value="Repeat">Repeat Buyers (2+ Orders)</option>
                   <option value="COD">Cash On Delivery (COD)</option>
                   <option value="Prepaid">Prepaid / UPI</option>
@@ -3054,9 +3074,11 @@ export const AdminPage = ({
                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${
                           cust.totalOrders > 1 
                             ? 'bg-purple-100 text-purple-800 border border-purple-200' 
-                            : 'bg-emerald-100 text-emerald-800'
+                            : cust.totalOrders === 1
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
                         }`}>
-                          {cust.totalOrders > 1 ? `★ ${cust.totalOrders} Orders` : '1st Order'}
+                          {cust.totalOrders > 1 ? `★ ${cust.totalOrders} Orders` : cust.totalOrders === 1 ? '1st Order Placed' : '📍 Checkout Lead / Inquired'}
                         </span>
                       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   MessageCircle, 
@@ -18,6 +18,7 @@ import { saveNewOrder } from '../utils/storage';
 import { recordCloudOrder } from '../utils/cloudSync';
 import { recordCustomerLead } from '../utils/customerDirectory';
 import { trackProductAction } from '../utils/productAnalytics';
+import { getCustomerAuthSession } from '../utils/luckyDraw';
 
 export const WhatsAppCheckoutModal = ({ 
   isOpen, 
@@ -70,20 +71,83 @@ export const WhatsAppCheckoutModal = ({
   const isTelegramActive = settings.orderChannel === 'telegram' || (settings.orderChannel === 'both' && selectedChannel === 'telegram');
   const activeChannelName = isTelegramActive ? 'Telegram' : 'WhatsApp';
 
-  const [customer, setCustomer] = useState({
-    name: '',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    paymentMethod: 'Prepaid Online (UPI / GPay / PhonePe / QR Code)',
-    notes: ''
+  const [customer, setCustomer] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aura_kurti_last_customer');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.name || parsed.phone)) {
+          return {
+            name: parsed.name || '',
+            phone: parsed.phone || '',
+            address: parsed.address || '',
+            city: parsed.city || '',
+            state: parsed.state || '',
+            pincode: parsed.pincode || '',
+            paymentMethod: parsed.paymentMethod || 'Prepaid Online (UPI / GPay / PhonePe / QR Code)',
+            notes: parsed.notes || ''
+          };
+        }
+      }
+    } catch {}
+
+    const auth = getCustomerAuthSession ? getCustomerAuthSession() : null;
+    if (auth && (auth.name || auth.phone)) {
+      return {
+        name: auth.name || '',
+        phone: auth.phone || '',
+        address: auth.address || '',
+        city: auth.city || '',
+        state: auth.state || '',
+        pincode: auth.pincode || '',
+        paymentMethod: 'Prepaid Online (UPI / GPay / PhonePe / QR Code)',
+        notes: ''
+      };
+    }
+
+    return {
+      name: '',
+      phone: '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      paymentMethod: 'Prepaid Online (UPI / GPay / PhonePe / QR Code)',
+      notes: ''
+    };
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+
+  // Auto-capture lead in real time to Supabase & localStorage whether checkout finishes or not
+  const syncLeadRealTime = (custData) => {
+    if (!custData) return;
+    try {
+      localStorage.setItem('aura_kurti_last_customer', JSON.stringify(custData));
+    } catch {}
+    
+    // As soon as name (>= 2 chars) or phone (>= 10 digits) or address is entered, push lead to Supabase
+    const hasPhone = custData.phone && custData.phone.replace(/[^\d]/g, '').length >= 10;
+    const hasName = custData.name && custData.name.trim().length >= 2;
+    if (hasPhone || hasName) {
+      recordCustomerLead(custData, null);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    const updated = { ...customer, [field]: value };
+    setCustomer(updated);
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    syncLeadRealTime(updated);
+  };
+
+  const handleInputBlur = () => {
+    syncLeadRealTime(customer);
+  };
 
   const validate = () => {
     const errs = {};
@@ -350,7 +414,8 @@ export const WhatsAppCheckoutModal = ({
                     required
                     placeholder="e.g. Ananya Sharma"
                     value={customer.name}
-                    onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    onBlur={handleInputBlur}
                     className={`w-full px-3 py-2 bg-white border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-brand-700 ${
                       errors.name ? 'border-rose-500' : 'border-stone-300'
                     }`}
@@ -368,7 +433,8 @@ export const WhatsAppCheckoutModal = ({
                     required
                     placeholder="e.g. 9876543210"
                     value={customer.phone}
-                    onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    onBlur={handleInputBlur}
                     className={`w-full px-3 py-2 bg-white border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-brand-700 ${
                       errors.phone ? 'border-rose-500' : 'border-stone-300'
                     }`}
@@ -387,7 +453,8 @@ export const WhatsAppCheckoutModal = ({
                   required
                   placeholder="e.g. Flat 402, Lotus Tower, Near Diamond Plaza"
                   value={customer.address}
-                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  onBlur={handleInputBlur}
                   className={`w-full px-3 py-2 bg-white border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-brand-700 ${
                     errors.address ? 'border-rose-500' : 'border-stone-300'
                   }`}
@@ -403,7 +470,8 @@ export const WhatsAppCheckoutModal = ({
                     type="text"
                     placeholder="e.g. Jaipur"
                     value={customer.city}
-                    onChange={(e) => setCustomer({ ...customer, city: e.target.value })}
+                    onChange={(e) => handleInputChange('city', e.target.value)}
+                    onBlur={handleInputBlur}
                     className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-brand-700"
                   />
                 </div>
@@ -414,7 +482,8 @@ export const WhatsAppCheckoutModal = ({
                     type="text"
                     placeholder="e.g. Rajasthan"
                     value={customer.state}
-                    onChange={(e) => setCustomer({ ...customer, state: e.target.value })}
+                    onChange={(e) => handleInputChange('state', e.target.value)}
+                    onBlur={handleInputBlur}
                     className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-brand-700"
                   />
                 </div>
@@ -429,7 +498,8 @@ export const WhatsAppCheckoutModal = ({
                     maxLength={6}
                     placeholder="e.g. 302001"
                     value={customer.pincode}
-                    onChange={(e) => setCustomer({ ...customer, pincode: e.target.value })}
+                    onChange={(e) => handleInputChange('pincode', e.target.value)}
+                    onBlur={handleInputBlur}
                     className={`w-full px-3 py-2 bg-white border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-brand-700 ${
                       errors.pincode ? 'border-rose-500' : 'border-stone-300'
                     }`}
