@@ -81,6 +81,11 @@ import {
   getUserDrawEligibility 
 } from '../../utils/luckyDraw';
 import { 
+  getSpinWheelConfig, 
+  saveSpinWheelConfig, 
+  getSpinWinsHistory 
+} from '../../utils/spinWheel';
+import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
   isSupabaseConfigured, 
@@ -515,6 +520,129 @@ export const AdminPage = ({
     if (drawEligibilityFilter === 'Ineligible') return !isEligible;
     return true;
   });
+
+  // ==========================================
+  // SPIN & WIN WHEEL STUDIO STATE
+  // ==========================================
+  const [spinWheelConfig, setSpinWheelConfig] = useState(getSpinWheelConfig);
+  const [spinWinsHistory, setSpinWinsHistory] = useState(getSpinWinsHistory);
+  const [isSliceModalOpen, setIsSliceModalOpen] = useState(false);
+  const [editingSliceIndex, setEditingSliceIndex] = useState(null);
+  const [sliceFormData, setSliceFormData] = useState({
+    id: '',
+    label: '',
+    subtext: '',
+    type: 'product',
+    couponCode: '',
+    worth: '',
+    color: '#700b1d',
+    textColor: '#fde047',
+    image: '',
+    description: ''
+  });
+
+  useEffect(() => {
+    if (activeTab === 'spinwheel') {
+      setSpinWheelConfig(getSpinWheelConfig());
+      setSpinWinsHistory(getSpinWinsHistory());
+    }
+  }, [activeTab]);
+
+  const handleSaveSpinWheelSettings = (e) => {
+    e.preventDefault();
+    saveSpinWheelConfig(spinWheelConfig);
+    setSaveSuccessMsg("🎡 Spin Wheel settings & slices saved successfully!");
+    setTimeout(() => setSaveSuccessMsg(''), 3000);
+  };
+
+  const handleToggleSpinWheelActive = () => {
+    const updated = {
+      ...spinWheelConfig,
+      isEnabled: spinWheelConfig.isEnabled === false ? true : false
+    };
+    saveSpinWheelConfig(updated);
+    setSpinWheelConfig(updated);
+  };
+
+  const handleOpenAddSlice = () => {
+    setEditingSliceIndex(null);
+    setSliceFormData({
+      id: `slice-${Date.now()}`,
+      label: '',
+      subtext: 'Exclusive Prize',
+      type: 'product',
+      couponCode: 'SPIN' + Math.floor(100 + Math.random() * 900),
+      worth: '₹999',
+      color: '#700b1d',
+      textColor: '#fde047',
+      image: '',
+      description: ''
+    });
+    setIsSliceModalOpen(true);
+  };
+
+  const handleOpenEditSlice = (slice, index) => {
+    setEditingSliceIndex(index);
+    setSliceFormData({
+      id: slice.id || `slice-${index}`,
+      label: slice.label || '',
+      subtext: slice.subtext || '',
+      type: slice.type || 'product',
+      couponCode: slice.couponCode || '',
+      worth: slice.worth || '',
+      color: slice.color || '#700b1d',
+      textColor: slice.textColor || '#fde047',
+      image: slice.image || '',
+      description: slice.description || ''
+    });
+    setIsSliceModalOpen(true);
+  };
+
+  const handleSaveSlice = async (e) => {
+    e.preventDefault();
+    if (!sliceFormData.label.trim()) return;
+
+    let finalImg = sliceFormData.image;
+    if (finalImg && finalImg.startsWith('data:image/')) {
+      try {
+        finalImg = await compressDataUrl(finalImg);
+      } catch {}
+    }
+
+    const currentSlices = Array.isArray(spinWheelConfig.slices) ? [...spinWheelConfig.slices] : [];
+    if (editingSliceIndex !== null && editingSliceIndex >= 0) {
+      currentSlices[editingSliceIndex] = { ...sliceFormData, image: finalImg };
+    } else {
+      currentSlices.push({ ...sliceFormData, image: finalImg });
+    }
+
+    const updatedConfig = { ...spinWheelConfig, slices: currentSlices };
+    saveSpinWheelConfig(updatedConfig);
+    setSpinWheelConfig(updatedConfig);
+    setIsSliceModalOpen(false);
+    setSaveSuccessMsg(`🎡 Wheel Slice "${sliceFormData.label}" updated!`);
+    setTimeout(() => setSaveSuccessMsg(''), 3000);
+  };
+
+  const handleDeleteSlice = (index, label) => {
+    if (window.confirm(`Delete wheel slice "${label}"?`)) {
+      const currentSlices = Array.isArray(spinWheelConfig.slices) ? spinWheelConfig.slices.filter((_, i) => i !== index) : [];
+      const updatedConfig = { ...spinWheelConfig, slices: currentSlices };
+      saveSpinWheelConfig(updatedConfig);
+      setSpinWheelConfig(updatedConfig);
+    }
+  };
+
+  const handleSliceFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      if (compressed) {
+        setSliceFormData(prev => ({ ...prev, image: compressed }));
+      }
+    } catch (err) {}
+  };
 
   // Product Form State (Supports 3-4+ Multi-Images)
   const [formData, setFormData] = useState({
@@ -1298,17 +1426,6 @@ export const AdminPage = ({
     setTimeout(() => setSaveSuccessMsg(''), 4000);
   };
 
-  // Reset Demo Catalog
-  const handleResetCatalog = () => {
-    if (window.confirm('Reset full store catalog and categories to default Women Collection?')) {
-      onSaveProducts(INITIAL_PRODUCTS);
-      onSaveCategories(DEFAULT_CATEGORIES);
-      onSaveCoupons(INITIAL_COUPONS);
-      onSaveReviews(INITIAL_REVIEWS);
-      setSaveSuccessMsg('Catalog, Coupons & Reviews restored to default!');
-      setTimeout(() => setSaveSuccessMsg(''), 3000);
-    }
-  };
 
   // Export Data to CSV
   const handleExportProductsCSV = () => {
@@ -1734,7 +1851,19 @@ export const AdminPage = ({
             }`}
           >
             <Gift size={15} className={activeTab === 'luckydraw' ? 'text-amber-600' : 'text-gold-400'} />
-            <span className="font-extrabold text-amber-400">🎁 Lucky Draw Studio ({luckyDrawUsers.length})</span>
+            <span className="font-extrabold text-amber-400">🎁 Lucky Draw ({luckyDrawUsers.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('spinwheel')}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'spinwheel'
+                ? 'bg-[#faf7f2] text-brand-950 border-stone-300 shadow-sm -mb-[1px]'
+                : 'text-stone-300 hover:text-white'
+            }`}
+          >
+            <span className="text-sm">🎡</span>
+            <span className="font-extrabold text-amber-400">Spin Wheel Studio ({spinWheelConfig.slices?.length || 0})</span>
           </button>
 
           <button
@@ -1871,15 +2000,6 @@ export const AdminPage = ({
                     );
                   })}
                 </select>
-
-                <button
-                  onClick={handleResetCatalog}
-                  className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border border-stone-300 cursor-pointer"
-                  title="Restore full demo catalog"
-                >
-                  <RotateCcw size={14} />
-                  <span>Reset Demo</span>
-                </button>
 
                 {/* ADD NEW PRODUCT BUTTON */}
                 <button
@@ -4062,6 +4182,280 @@ export const AdminPage = ({
           </div>
         )}
 
+        {/* TAB: SPIN & WIN WHEEL STUDIO */}
+        {activeTab === 'spinwheel' && (
+          <div className="space-y-6">
+            
+            {/* 1. Header Studio Bar */}
+            <div className="bg-gradient-to-r from-[#540614] via-[#700b1d] to-[#3b030c] text-gold-100 p-5 sm:p-6 rounded-3xl border border-gold-400/50 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-3 py-1 bg-gold-400/20 text-gold-200 border border-gold-400/50 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🎡</span>
+                    Interactive Fortune Wheel
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold flex items-center gap-1 ${
+                    spinWheelConfig.isEnabled !== false
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50'
+                      : 'bg-stone-700/60 text-stone-300 border border-stone-600'
+                  }`}>
+                    {spinWheelConfig.isEnabled !== false ? '🟢 Wheel Active on Store' : '🔴 Wheel Disabled'}
+                  </span>
+                </div>
+                <h2 className="font-heading text-xl sm:text-2xl font-bold text-gold-100 tracking-wide">
+                  {spinWheelConfig.title || "🎡 Spin the Royal Wheel to Win!"}
+                </h2>
+                <p className="text-xs text-gold-200/80 max-w-2xl font-light">
+                  Website khulte hi user ko spin wheel popup dikhega. Admin custom dresses, sarees, free gifts ya discount coupons upload kar sakta hai. User ko prize redeem karne ke liye apna Mobile ID & Password enter karna hoga.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
+                <button
+                  type="button"
+                  onClick={handleToggleSpinWheelActive}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all ${
+                    spinWheelConfig.isEnabled !== false
+                      ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
+                >
+                  {spinWheelConfig.isEnabled !== false ? '⏸ Pause Wheel' : '▶ Activate Wheel'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddSlice}
+                  className="px-4 py-2.5 bg-gradient-to-r from-gold-400 to-gold-500 hover:from-gold-500 hover:to-gold-600 text-brand-950 font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <Plus size={15} />
+                  <span>+ Add Wheel Prize Slice</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Wheel Settings Form */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                <h3 className="font-serif text-base font-bold text-stone-900 flex items-center gap-2">
+                  <Settings size={18} className="text-amber-700" />
+                  <span>Wheel Display & Auto-Popup Settings</span>
+                </h3>
+              </div>
+
+              <form onSubmit={handleSaveSpinWheelSettings} className="grid grid-cols-1 sm:grid-cols-12 gap-4 text-xs">
+                <div className="sm:col-span-5">
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Modal Heading Title
+                  </label>
+                  <input
+                    type="text"
+                    value={spinWheelConfig.title || ''}
+                    onChange={(e) => setSpinWheelConfig({ ...spinWheelConfig, title: e.target.value })}
+                    placeholder="e.g. 🎡 Spin the Royal Wheel to Win!"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl font-bold text-stone-900"
+                  />
+                </div>
+
+                <div className="sm:col-span-4">
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Auto-Popup on Website Load
+                  </label>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="autoOpenCheck"
+                      checked={spinWheelConfig.autoOpenOnVisit !== false}
+                      onChange={(e) => setSpinWheelConfig({ ...spinWheelConfig, autoOpenOnVisit: e.target.checked })}
+                      className="w-4 h-4 rounded text-brand-900 cursor-pointer accent-[#700b1d]"
+                    />
+                    <label htmlFor="autoOpenCheck" className="text-xs font-bold text-stone-800 cursor-pointer">
+                      Show Wheel automatically when website opens
+                    </label>
+                  </div>
+                </div>
+
+                <div className="sm:col-span-3 flex items-end">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 royal-maroon-bg text-gold-100 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Check size={16} />
+                    <span>Save Wheel Settings</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* 3. Wheel Slices & Product Prize Catalog */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                <div>
+                  <h3 className="font-serif text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Award size={18} className="text-gold-600" />
+                    <span>Spin Wheel Slices & Product Catalog ({(spinWheelConfig.slices || []).length} Slices)</span>
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    Upload custom products, free apparel gifts, or discount promo coupons for each slice.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddSlice}
+                  className="px-3.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                >
+                  <Plus size={14} />
+                  <span>Add Slice</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {(spinWheelConfig.slices || []).map((slice, idx) => (
+                  <div
+                    key={slice.id || idx}
+                    className="bg-[#fdfcf9] rounded-2xl border border-stone-200 p-4 space-y-3 shadow-2xs relative group hover:border-gold-400 transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-md text-white shadow-2xs" style={{ backgroundColor: slice.color || '#700b1d' }}>
+                          Slice #{idx + 1}
+                        </span>
+                        <span className="text-xs font-black text-brand-950 font-mono">
+                          {slice.worth}
+                        </span>
+                      </div>
+
+                      {slice.image ? (
+                        <div className="w-full h-28 rounded-xl overflow-hidden border border-amber-300 bg-stone-100 shadow-xs">
+                          <img
+                            src={normalizeImageUrl(slice.image)}
+                            alt={slice.label}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80";
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full h-16 rounded-xl bg-amber-50/70 border border-dashed border-amber-300 flex items-center justify-center text-stone-400 text-xs font-bold">
+                          <span>🎟️ Discount Coupon Slice</span>
+                        </div>
+                      )}
+
+                      <div>
+                        <h4 className="text-xs font-bold text-stone-900 line-clamp-1">
+                          {slice.label}
+                        </h4>
+                        <p className="text-[10px] text-stone-500 line-clamp-1">
+                          {slice.subtext || slice.type}
+                        </p>
+                      </div>
+
+                      {slice.couponCode && (
+                        <div className="p-1.5 bg-stone-100 rounded-lg text-center font-mono text-[11px] font-extrabold text-stone-800 border border-stone-200">
+                          Code: {slice.couponCode}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-stone-200 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditSlice(slice, idx)}
+                        className="text-amber-900 hover:text-amber-950 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 size={12} /> Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSlice(idx, slice.label)}
+                        className="text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 size={12} /> Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. Live Spin Winners Activity Logs */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif text-base font-bold text-stone-900 flex items-center gap-2">
+                    <PartyPopper size={18} className="text-amber-700" />
+                    <span>Recent Spin & Win Activity Records</span>
+                  </h3>
+                  <span className="bg-amber-100 text-amber-900 text-xs font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300">
+                    {spinWinsHistory.length} Recorded
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-stone-200">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-stone-100 text-stone-700 uppercase text-[10px] tracking-wider font-extrabold border-b border-stone-200">
+                      <th className="p-3.5">Prize Won</th>
+                      <th className="p-3.5">Value</th>
+                      <th className="p-3.5">Promo Coupon</th>
+                      <th className="p-3.5">Customer Name & Contact</th>
+                      <th className="p-3.5">Claim Status</th>
+                      <th className="p-3.5">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-200 bg-white">
+                    {spinWinsHistory.map((win) => (
+                      <tr key={win.id} className="hover:bg-amber-50/40">
+                        <td className="p-3.5 font-bold text-stone-900">
+                          {win.prizeTitle}
+                        </td>
+                        <td className="p-3.5 font-black text-brand-900">
+                          {win.prizeWorth}
+                        </td>
+                        <td className="p-3.5 font-mono font-bold text-stone-800">
+                          {win.couponCode || '—'}
+                        </td>
+                        <td className="p-3.5">
+                          <span className="font-bold text-stone-900 block">{win.userName}</span>
+                          <span className="text-[10px] text-stone-500 font-mono">{win.userPhone}</span>
+                        </td>
+                        <td className="p-3.5">
+                          {win.claimed ? (
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-300">
+                              ✓ Claimed to Account
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded-full">
+                              Guest Spin
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-stone-500 text-[11px] whitespace-nowrap">
+                          {win.wonAt ? new Date(win.wonAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {spinWinsHistory.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-6 text-center text-stone-500">
+                          No spin wheel plays recorded yet. As visitors spin the wheel, wins will show here.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+
       </main>
 
       {/* 3. DEDICATED FOOTER */}
@@ -5040,6 +5434,244 @@ export const AdminPage = ({
                 >
                   <Check size={16} />
                   <span>{editingPrizeId ? 'Update Prize' : 'Save Prize'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD / EDIT SPIN WHEEL SLICE MODAL */}
+      {isSliceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-stone-950/80 backdrop-blur-md animate-fadeIn">
+          <div 
+            className="relative w-full max-w-md bg-[#fdfcf9] rounded-3xl shadow-2xl border border-gold-400 p-6 overflow-hidden my-auto max-h-[90vh] overflow-y-auto text-stone-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-200 pb-3 mb-4">
+              <h3 className="font-serif text-base font-bold text-brand-950 flex items-center gap-2">
+                <span className="text-xl">🎡</span>
+                <span>{editingSliceIndex !== null ? 'Edit Wheel Prize Slice' : 'Add Custom Wheel Prize Slice'}</span>
+              </h3>
+              <button
+                onClick={() => setIsSliceModalOpen(false)}
+                className="p-1 rounded-full text-stone-400 hover:text-stone-700 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSlice} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Slice Prize Label / Product Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Pure Katan Silk Kurti or Flat ₹500 OFF"
+                  value={sliceFormData.label}
+                  onChange={(e) => setSliceFormData({ ...sliceFormData, label: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl font-bold text-stone-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Prize Category / Type
+                  </label>
+                  <select
+                    value={sliceFormData.type}
+                    onChange={(e) => setSliceFormData({ ...sliceFormData, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl font-semibold text-stone-800"
+                  >
+                    <option value="product">👗 Free Product / Dress</option>
+                    <option value="coupon">🎟️ Discount Coupon</option>
+                    <option value="discount">⚡ Percentage (%) OFF</option>
+                    <option value="gift">💎 Luxury Gift</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Estimated Worth / Value
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ₹1,999 or 25% OFF"
+                    value={sliceFormData.worth}
+                    onChange={(e) => setSliceFormData({ ...sliceFormData, worth: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl font-bold text-brand-950"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Promo Coupon Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SPIN500 or FREEKURTI"
+                    value={sliceFormData.couponCode}
+                    onChange={(e) => setSliceFormData({ ...sliceFormData, couponCode: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl font-mono font-bold uppercase text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Subtitle / Tagline
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Free Gift on Order"
+                    value={sliceFormData.subtext}
+                    onChange={(e) => setSliceFormData({ ...sliceFormData, subtext: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-stone-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Slice Background Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={sliceFormData.color || '#700b1d'}
+                      onChange={(e) => setSliceFormData({ ...sliceFormData, color: e.target.value })}
+                      className="w-9 h-9 rounded-lg border border-stone-300 cursor-pointer p-0.5"
+                    />
+                    <input
+                      type="text"
+                      value={sliceFormData.color || '#700b1d'}
+                      onChange={(e) => setSliceFormData({ ...sliceFormData, color: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-white border border-stone-300 rounded-lg font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Text Font Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={sliceFormData.textColor || '#fde047'}
+                      onChange={(e) => setSliceFormData({ ...sliceFormData, textColor: e.target.value })}
+                      className="w-9 h-9 rounded-lg border border-stone-300 cursor-pointer p-0.5"
+                    />
+                    <input
+                      type="text"
+                      value={sliceFormData.textColor || '#fde047'}
+                      onChange={(e) => setSliceFormData({ ...sliceFormData, textColor: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-white border border-stone-300 rounded-lg font-mono text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Slice Photo / Uploader */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-20 rounded-xl overflow-hidden border border-gold-400 bg-white flex items-center justify-center text-xs text-stone-400 shadow-sm shrink-0">
+                    {sliceFormData.image ? (
+                      <img
+                        src={normalizeImageUrl(sliceFormData.image)}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80";
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center p-1">
+                        <Gift size={20} className="mx-auto text-amber-600 mb-1" />
+                        <span className="text-[9px]">No Photo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[11px] font-bold text-stone-800 uppercase tracking-wider block">
+                      Prize Photo / Preview
+                    </span>
+                    <p className="text-[10px] text-stone-500">
+                      Paste direct URL, Google Drive link, press Ctrl+V or select from device.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Click & press Ctrl + V (or paste URL / Drive link)"
+                    value={sliceFormData.image}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSliceFormData({ ...sliceFormData, image: normalizeImageUrl(val) });
+                    }}
+                    onPaste={async (e) => {
+                      const clipboardData = e.clipboardData;
+                      if (!clipboardData) return;
+                      const items = clipboardData.items;
+                      if (items) {
+                        for (let i = 0; i < items.length; i++) {
+                          if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+                            const file = items[i].getAsFile();
+                            if (file) {
+                              e.preventDefault();
+                              const res = await compressImageFile(file);
+                              if (res) setSliceFormData(prev => ({ ...prev, image: res }));
+                              return;
+                            }
+                          }
+                        }
+                      }
+                      const txt = clipboardData.getData('text');
+                      if (txt && (txt.startsWith('http') || txt.startsWith('data:image/') || isGoogleDriveUrl(txt))) {
+                        e.preventDefault();
+                        let clean = normalizeImageUrl(txt);
+                        if (clean.startsWith('data:image/')) clean = await compressDataUrl(clean);
+                        setSliceFormData(prev => ({ ...prev, image: clean }));
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-stone-500 font-semibold block mb-0.5">Or Choose Photo File from Device:</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSliceFileUpload}
+                    className="w-full text-xs text-stone-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-stone-900 file:text-gold-200 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSliceModalOpen(false)}
+                  className="w-1/3 py-2.5 bg-stone-100 text-stone-700 font-bold rounded-xl cursor-pointer hover:bg-stone-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-2.5 royal-maroon-bg text-gold-100 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Check size={16} />
+                  <span>{editingSliceIndex !== null ? 'Update Slice' : 'Save Slice'}</span>
                 </button>
               </div>
             </form>
