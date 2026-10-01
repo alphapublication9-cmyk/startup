@@ -14,6 +14,8 @@ import {
   saveNewOrder as saveLocalOrder
 } from './storage';
 import { applyEnvSettingsOverrides } from '../data/initialSettings';
+import { getSpinWheelConfig, fetchCloudSpinWheelConfig, saveSpinWheelConfig } from './spinWheel';
+import { getLuckyDrawConfig, fetchCloudLuckyDrawConfig, saveLuckyDrawConfig } from './luckyDraw';
 
 
 /**
@@ -546,8 +548,15 @@ export const subscribeToCloudChanges = (callbacks = {}) => {
           callbacks.onCategoriesChange(fresh);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async () => {
-        if (callbacks.onSettingsChange) {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async (payload) => {
+        const changedId = payload?.new?.id || payload?.old?.id;
+        if (changedId === 'spin_wheel_config' && callbacks.onSpinWheelConfigChange) {
+          const freshSpin = await fetchCloudSpinWheelConfig();
+          callbacks.onSpinWheelConfigChange(freshSpin);
+        } else if (changedId === 'lucky_draw_config' && callbacks.onLuckyDrawConfigChange) {
+          const freshDraw = await fetchCloudLuckyDrawConfig();
+          callbacks.onLuckyDrawConfigChange(freshDraw);
+        } else if (callbacks.onSettingsChange) {
           const fresh = await fetchCloudSettings();
           callbacks.onSettingsChange(fresh);
         }
@@ -596,16 +605,20 @@ export const pushAllDataToSupabase = async () => {
     const settings = getStoredSettings();
     const coupons = getStoredCoupons();
     const reviews = getStoredReviews();
+    const spinConfig = getSpinWheelConfig();
+    const luckyConfig = getLuckyDrawConfig();
 
     await syncCloudProducts(products);
     await syncCloudCategories(categories);
     await syncCloudSettings(settings);
     await syncCloudCoupons(coupons);
     await syncCloudReviews(reviews);
+    await saveSpinWheelConfig(spinConfig);
+    await saveLuckyDrawConfig(luckyConfig);
 
     return { 
       success: true, 
-      message: `Successfully synced ${products.length} products, ${categories.length} categories, settings, coupons and reviews to Supabase Cloud!` 
+      message: `Successfully synced ${products.length} products, ${categories.length} categories, Spin Wheel Studio, Lucky Draw, settings, coupons & reviews to Supabase Cloud!` 
     };
   } catch (err) {
     return { success: false, message: err.message || 'Failed to sync data to cloud.' };

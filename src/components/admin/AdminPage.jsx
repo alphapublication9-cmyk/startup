@@ -75,15 +75,19 @@ import { getProductAnalyticsList, resetProductAnalytics, fetchAndMergeCloudAnaly
 import { getStoredCustomers, deleteCustomerLead, exportCustomersToCSV } from '../../utils/customerDirectory';
 import { 
   getLuckyDrawConfig, 
+  fetchCloudLuckyDrawConfig,
   saveLuckyDrawConfig, 
   getLuckyDrawUsers, 
   saveLuckyDrawUsers, 
-  getUserDrawEligibility 
+  getUserDrawEligibility,
+  DEFAULT_LUCKY_DRAW_CONFIG
 } from '../../utils/luckyDraw';
 import { 
   getSpinWheelConfig, 
+  fetchCloudSpinWheelConfig,
   saveSpinWheelConfig, 
-  getSpinWinsHistory 
+  getSpinWinsHistory,
+  DEFAULT_SPIN_CONFIG
 } from '../../utils/spinWheel';
 import { 
   getSupabaseConfig, 
@@ -297,12 +301,13 @@ export const AdminPage = ({
   // ==========================================
   // LUCKY DRAW & CONTEST STUDIO STATE
   // ==========================================
-  const [luckyDrawConfig, setLuckyDrawConfig] = useState(getLuckyDrawConfig);
-  const [luckyDrawUsers, setLuckyDrawUsers] = useState(getLuckyDrawUsers);
+  const [luckyDrawConfig, setLuckyDrawConfig] = useState(() => getLuckyDrawConfig() || DEFAULT_LUCKY_DRAW_CONFIG);
+  const [luckyDrawUsers, setLuckyDrawUsers] = useState(() => getLuckyDrawUsers() || []);
   const [drawSearchQuery, setDrawSearchQuery] = useState('');
   const [drawEligibilityFilter, setDrawEligibilityFilter] = useState('All'); // 'All' | 'Eligible' | 'Ineligible'
+  const [isDrawSyncing, setIsDrawSyncing] = useState(false);
   const [campaignFormData, setCampaignFormData] = useState(() => {
-    const cfg = getLuckyDrawConfig();
+    const cfg = getLuckyDrawConfig() || DEFAULT_LUCKY_DRAW_CONFIG;
     return {
       title: cfg.title || '',
       tagline: cfg.tagline || '',
@@ -326,9 +331,9 @@ export const AdminPage = ({
 
   useEffect(() => {
     if (activeTab === 'luckydraw') {
-      const cfg = getLuckyDrawConfig();
+      const cfg = getLuckyDrawConfig() || DEFAULT_LUCKY_DRAW_CONFIG;
       setLuckyDrawConfig(cfg);
-      setLuckyDrawUsers(getLuckyDrawUsers());
+      setLuckyDrawUsers(getLuckyDrawUsers() || []);
       setCampaignFormData({
         title: cfg.title || '',
         tagline: cfg.tagline || '',
@@ -337,6 +342,20 @@ export const AdminPage = ({
         terms: cfg.terms || '',
         isActive: cfg.isActive !== false
       });
+      // Also fetch fresh from cloud
+      fetchCloudLuckyDrawConfig().then(cloudCfg => {
+        if (cloudCfg) {
+          setLuckyDrawConfig(cloudCfg);
+          setCampaignFormData({
+            title: cloudCfg.title || '',
+            tagline: cloudCfg.tagline || '',
+            minProductsRequired: cloudCfg.minProductsRequired || 3,
+            announcementDate: cloudCfg.announcementDate || '2026-11-15',
+            terms: cloudCfg.terms || '',
+            isActive: cloudCfg.isActive !== false
+          });
+        }
+      }).catch(() => {});
     }
   }, [activeTab]);
 
@@ -537,8 +556,9 @@ export const AdminPage = ({
   // ==========================================
   // SPIN & WIN WHEEL STUDIO STATE
   // ==========================================
-  const [spinWheelConfig, setSpinWheelConfig] = useState(getSpinWheelConfig);
-  const [spinWinsHistory, setSpinWinsHistory] = useState(getSpinWinsHistory);
+  const [spinWheelConfig, setSpinWheelConfig] = useState(() => getSpinWheelConfig() || DEFAULT_SPIN_CONFIG);
+  const [spinWinsHistory, setSpinWinsHistory] = useState(() => getSpinWinsHistory() || []);
+  const [isSpinSyncing, setIsSpinSyncing] = useState(false);
   const [isSliceModalOpen, setIsSliceModalOpen] = useState(false);
   const [editingSliceIndex, setEditingSliceIndex] = useState(null);
   const [sliceFormData, setSliceFormData] = useState({
@@ -556,10 +576,53 @@ export const AdminPage = ({
 
   useEffect(() => {
     if (activeTab === 'spinwheel') {
-      setSpinWheelConfig(getSpinWheelConfig());
-      setSpinWinsHistory(getSpinWinsHistory());
+      const cfg = getSpinWheelConfig();
+      setSpinWheelConfig(cfg || DEFAULT_SPIN_CONFIG);
+      setSpinWinsHistory(getSpinWinsHistory() || []);
+      // Also fetch fresh from cloud
+      fetchCloudSpinWheelConfig().then(cloudCfg => {
+        if (cloudCfg) setSpinWheelConfig(cloudCfg);
+      }).catch(() => {});
     }
   }, [activeTab]);
+
+  const handleSyncSpinFromCloud = async () => {
+    setIsSpinSyncing(true);
+    try {
+      const fresh = await fetchCloudSpinWheelConfig();
+      if (fresh) setSpinWheelConfig(fresh);
+      setSaveSuccessMsg("✅ Spin Wheel synced live from Supabase Cloud!");
+      setTimeout(() => setSaveSuccessMsg(''), 3000);
+    } catch (e) {
+      setSaveSuccessMsg("⚠️ Could not reach cloud, using local config.");
+      setTimeout(() => setSaveSuccessMsg(''), 3000);
+    }
+    setIsSpinSyncing(false);
+  };
+
+  const handleSyncDrawFromCloud = async () => {
+    setIsDrawSyncing(true);
+    try {
+      const fresh = await fetchCloudLuckyDrawConfig();
+      if (fresh) {
+        setLuckyDrawConfig(fresh);
+        setCampaignFormData({
+          title: fresh.title || '',
+          tagline: fresh.tagline || '',
+          minProductsRequired: fresh.minProductsRequired || 3,
+          announcementDate: fresh.announcementDate || '2026-11-15',
+          terms: fresh.terms || '',
+          isActive: fresh.isActive !== false
+        });
+      }
+      setSaveSuccessMsg("✅ Lucky Draw synced live from Supabase Cloud!");
+      setTimeout(() => setSaveSuccessMsg(''), 3000);
+    } catch (e) {
+      setSaveSuccessMsg("⚠️ Could not reach cloud, using local config.");
+      setTimeout(() => setSaveSuccessMsg(''), 3000);
+    }
+    setIsDrawSyncing(false);
+  };
 
   const handleSaveSpinWheelSettings = (e) => {
     e.preventDefault();
@@ -1840,7 +1903,7 @@ export const AdminPage = ({
             }`}
           >
             <ListOrdered size={15} className={activeTab === 'orders' ? 'text-brand-900' : 'text-gold-400'} />
-            <span>Orders ({orders.length})</span>
+            <span>Orders ({(orders || []).length})</span>
           </button>
 
           <button
@@ -1852,7 +1915,7 @@ export const AdminPage = ({
             }`}
           >
             <Users size={15} className={activeTab === 'customers' ? 'text-brand-900' : 'text-gold-400'} />
-            <span className="font-extrabold text-amber-700">👥 Customer Leads ({customers.length})</span>
+            <span className="font-extrabold text-amber-700">👥 Customer Leads ({(customers || []).length})</span>
           </button>
 
           <button
@@ -1864,7 +1927,7 @@ export const AdminPage = ({
             }`}
           >
             <Gift size={15} className={activeTab === 'luckydraw' ? 'text-amber-600' : 'text-gold-400'} />
-            <span className="font-extrabold text-amber-400">🎁 Lucky Draw ({luckyDrawUsers.length})</span>
+            <span className="font-extrabold text-amber-400">🎁 Lucky Draw ({(luckyDrawUsers || []).length})</span>
           </button>
 
           <button
@@ -1876,7 +1939,7 @@ export const AdminPage = ({
             }`}
           >
             <span className="text-sm">🎡</span>
-            <span className="font-extrabold text-amber-400">Spin Wheel Studio ({spinWheelConfig.slices?.length || 0})</span>
+            <span className="font-extrabold text-amber-400">Spin Wheel Studio ({(spinWheelConfig?.slices || []).length})</span>
           </button>
 
           <button
@@ -1888,7 +1951,7 @@ export const AdminPage = ({
             }`}
           >
             <MessageSquareQuote size={15} className={activeTab === 'reviews' ? 'text-brand-900' : 'text-gold-400'} />
-            <span>Buyer Reviews ({reviews.length})</span>
+            <span>Buyer Reviews ({(reviews || []).length})</span>
           </button>
 
           <button
@@ -3658,32 +3721,46 @@ export const AdminPage = ({
                     Boutique Giveaway Engine
                   </span>
                   <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold flex items-center gap-1 ${
-                    luckyDrawConfig.isActive
+                    luckyDrawConfig?.isActive
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50'
                       : 'bg-stone-700/60 text-stone-300 border border-stone-600'
                   }`}>
-                    {luckyDrawConfig.isActive ? '🟢 Campaign Live on Store' : '🔴 Campaign Paused'}
+                    {luckyDrawConfig?.isActive ? '🟢 Campaign Live on Store' : '🔴 Campaign Paused'}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/20 text-gold-300 border border-gold-400/40 flex items-center gap-1">
+                    ⚡ Supabase Cloud Synced
                   </span>
                 </div>
                 <h2 className="font-heading text-xl sm:text-2xl font-bold text-gold-100 tracking-wide">
-                  {luckyDrawConfig.title || "Festive Mega Royal Lucky Draw"}
+                  {luckyDrawConfig?.title || "Festive Mega Royal Lucky Draw"}
                 </h2>
                 <p className="text-xs text-gold-200/80 max-w-2xl font-light">
-                  Rule: Customers must order a minimum of <strong className="text-gold-300 font-bold">{luckyDrawConfig.minProductsRequired || 3} Products</strong> to qualify. Registered users create ID/Password to view their Golden Ticket.
+                  Rule: Customers must order a minimum of <strong className="text-gold-300 font-bold">{luckyDrawConfig?.minProductsRequired || 3} Products</strong> to qualify. Har update Supabase cloud par live sync hota hai!
                 </p>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
                 <button
                   type="button"
+                  onClick={handleSyncDrawFromCloud}
+                  disabled={isDrawSyncing}
+                  className="px-3 py-2.5 bg-stone-900/80 hover:bg-stone-800 text-gold-200 border border-gold-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all disabled:opacity-50"
+                  title="Sync latest configuration from Supabase Cloud"
+                >
+                  <RotateCcw size={13} className={isDrawSyncing ? 'animate-spin' : ''} />
+                  <span>{isDrawSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleToggleLuckyDrawActive}
                   className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all ${
-                    luckyDrawConfig.isActive
+                    luckyDrawConfig?.isActive
                       ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                   }`}
                 >
-                  {luckyDrawConfig.isActive ? '⏸ Pause Campaign' : '▶ Activate Campaign'}
+                  {luckyDrawConfig?.isActive ? '⏸ Pause Campaign' : '▶ Activate Campaign'}
                 </button>
 
                 <button
@@ -4209,32 +4286,46 @@ export const AdminPage = ({
                     Interactive Fortune Wheel
                   </span>
                   <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold flex items-center gap-1 ${
-                    spinWheelConfig.isEnabled !== false
+                    spinWheelConfig?.isEnabled !== false
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50'
                       : 'bg-stone-700/60 text-stone-300 border border-stone-600'
                   }`}>
-                    {spinWheelConfig.isEnabled !== false ? '🟢 Wheel Active on Store' : '🔴 Wheel Disabled'}
+                    {spinWheelConfig?.isEnabled !== false ? '🟢 Wheel Active on Store' : '🔴 Wheel Disabled'}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/20 text-gold-300 border border-gold-400/40 flex items-center gap-1">
+                    ⚡ Supabase Cloud Synced
                   </span>
                 </div>
                 <h2 className="font-heading text-xl sm:text-2xl font-bold text-gold-100 tracking-wide">
-                  {spinWheelConfig.title || "🎡 Spin the Royal Wheel to Win!"}
+                  {spinWheelConfig?.title || "🎡 Spin the Royal Wheel to Win!"}
                 </h2>
                 <p className="text-xs text-gold-200/80 max-w-2xl font-light">
-                  Website khulte hi user ko spin wheel popup dikhega. Admin custom dresses, sarees, free gifts ya discount coupons upload kar sakta hai. User ko prize redeem karne ke liye apna Mobile ID & Password enter karna hoga.
+                  Website khulte hi user ko spin wheel popup dikhega. Admin custom dresses, sarees, free gifts ya discount coupons upload kar sakta hai. Har change Supabase cloud se live sync hota hai!
                 </p>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
                 <button
                   type="button"
+                  onClick={handleSyncSpinFromCloud}
+                  disabled={isSpinSyncing}
+                  className="px-3 py-2.5 bg-stone-900/80 hover:bg-stone-800 text-gold-200 border border-gold-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all disabled:opacity-50"
+                  title="Sync latest configuration from Supabase Cloud"
+                >
+                  <RotateCcw size={13} className={isSpinSyncing ? 'animate-spin' : ''} />
+                  <span>{isSpinSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleToggleSpinWheelActive}
                   className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all ${
-                    spinWheelConfig.isEnabled !== false
+                    spinWheelConfig?.isEnabled !== false
                       ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                   }`}
                 >
-                  {spinWheelConfig.isEnabled !== false ? '⏸ Pause Wheel' : '▶ Activate Wheel'}
+                  {spinWheelConfig?.isEnabled !== false ? '⏸ Pause Wheel' : '▶ Activate Wheel'}
                 </button>
 
                 <button

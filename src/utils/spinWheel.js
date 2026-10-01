@@ -115,14 +115,17 @@ export const DEFAULT_SPIN_CONFIG = {
 };
 
 /**
- * Get Spin Wheel Config
+ * Get Spin Wheel Config (Safe with fallback)
  */
 export const getSpinWheelConfig = () => {
   try {
     const raw = localStorage.getItem(SPIN_WHEEL_CONFIG_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_SPIN_CONFIG, ...parsed };
+      const slices = Array.isArray(parsed?.slices) && parsed.slices.length > 0
+        ? parsed.slices
+        : DEFAULT_WHEEL_SLICES;
+      return { ...DEFAULT_SPIN_CONFIG, ...parsed, slices };
     }
   } catch (e) {
     console.error("Failed to load spin wheel config", e);
@@ -131,27 +134,72 @@ export const getSpinWheelConfig = () => {
 };
 
 /**
- * Save Spin Wheel Config
+ * Fetch Spin Wheel Config directly from Supabase Cloud
  */
-export const saveSpinWheelConfig = (config) => {
+export const fetchCloudSpinWheelConfig = async () => {
+  const supabase = getSupabase();
+  if (!supabase) return getSpinWheelConfig();
+
   try {
-    localStorage.setItem(SPIN_WHEEL_CONFIG_KEY, JSON.stringify(config));
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('id', 'spin_wheel_config')
+      .single();
+
+    if (!error && data && data.data) {
+      const cloudConfig = data.data;
+      const slices = Array.isArray(cloudConfig?.slices) && cloudConfig.slices.length > 0
+        ? cloudConfig.slices
+        : DEFAULT_WHEEL_SLICES;
+      const merged = { ...DEFAULT_SPIN_CONFIG, ...cloudConfig, slices };
+      
+      try {
+        localStorage.setItem(SPIN_WHEEL_CONFIG_KEY, JSON.stringify(merged));
+      } catch {}
+      idbSet(SPIN_WHEEL_CONFIG_KEY, merged);
+      return merged;
+    }
+  } catch (err) {
+    console.warn("Cloud spin wheel config load error:", err);
+  }
+
+  return getSpinWheelConfig();
+};
+
+/**
+ * Save Spin Wheel Config to localStorage, IndexedDB & Supabase Cloud
+ */
+export const saveSpinWheelConfig = async (config) => {
+  const safeConfig = {
+    ...DEFAULT_SPIN_CONFIG,
+    ...config,
+    slices: Array.isArray(config?.slices) && config.slices.length > 0 ? config.slices : DEFAULT_WHEEL_SLICES
+  };
+
+  try {
+    localStorage.setItem(SPIN_WHEEL_CONFIG_KEY, JSON.stringify(safeConfig));
   } catch (e) {
     console.warn("Storage warning for spin config", e);
   }
-  idbSet(SPIN_WHEEL_CONFIG_KEY, config);
+  idbSet(SPIN_WHEEL_CONFIG_KEY, safeConfig);
 
-  // Sync to Supabase if configured
+  // Sync live to Supabase if configured
   try {
     const supabase = getSupabase();
     if (supabase) {
-      supabase.from('settings').upsert({
+      const { error } = await supabase.from('settings').upsert({
         id: 'spin_wheel_config',
-        data: config,
+        data: safeConfig,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'id' }).catch(() => {});
+      }, { onConflict: 'id' });
+      if (error) {
+        console.warn("Supabase spin wheel config upsert:", error.message);
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("Supabase spin config sync failed:", err);
+  }
 };
 
 /**
@@ -171,16 +219,16 @@ export const getSpinWinsHistory = () => {
 };
 
 /**
- * Save a spin win record
+ * Save a spin win record and sync to Supabase
  */
-export const recordSpinWin = ({ prize, user = null }) => {
+export const recordSpinWin = async ({ prize, user = null }) => {
   const now = new Date().toISOString();
   const record = {
     id: `spin-${Date.now()}`,
     prizeTitle: prize.label,
     prizeWorth: prize.worth,
     prizeType: prize.type,
-    couponCode: prize.couponCode,
+    couponCode: prize.couponCode || '',
     prizeImage: prize.image || '',
     userPhone: user?.phone || 'Guest',
     userName: user?.name || 'Guest Visitor',
@@ -196,6 +244,21 @@ export const recordSpinWin = ({ prize, user = null }) => {
     localStorage.setItem(DEVICE_SPIN_TIMESTAMP_KEY, Date.now().toString());
   } catch {}
   idbSet(SPIN_WHEEL_WINS_KEY, updated);
+
+  // Also sync win record to Supabase
+  try {
+    const supabase = getSupabase();
+    if (supabase) {
+      supabase.from('orders').insert({
+        id: record.id,
+        customer: { name: record.userName, phone: record.userPhone, city: record.userCity },
+        items: [{ name: `[Spin Win Prize] ${record.prizeTitle}`, price: 0, quantity: 1, worth: record.prizeWorth }],
+        grand_total: 0,
+        status: 'Spin Prize Won',
+        created_at: now
+      }).catch(() => {});
+    }
+  } catch {}
 
   return record;
 };
@@ -217,7 +280,7 @@ export const linkSpinWinToCustomer = (user, wonPrize) => {
           id: `rew-${Date.now()}`,
           title: wonPrize.label,
           worth: wonPrize.worth,
-          couponCode: wonPrize.couponCode,
+          couponCode: wonPrize.couponCode || '',
           image: wonPrize.image || '',
           claimedAt: new Date().toISOString()
         },

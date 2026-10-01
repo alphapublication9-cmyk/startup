@@ -41,14 +41,17 @@ export const DEFAULT_LUCKY_DRAW_CONFIG = {
 };
 
 /**
- * Get Lucky Draw Config
+ * Get Lucky Draw Config (Safe with fallback)
  */
 export const getLuckyDrawConfig = () => {
   try {
     const raw = localStorage.getItem(LUCKY_DRAW_CONFIG_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_LUCKY_DRAW_CONFIG, ...parsed };
+      const prizes = Array.isArray(parsed?.prizes) && parsed.prizes.length > 0
+        ? parsed.prizes
+        : DEFAULT_LUCKY_DRAW_CONFIG.prizes;
+      return { ...DEFAULT_LUCKY_DRAW_CONFIG, ...parsed, prizes };
     }
   } catch (e) {
     console.error("Failed to load lucky draw config", e);
@@ -57,27 +60,72 @@ export const getLuckyDrawConfig = () => {
 };
 
 /**
- * Save Lucky Draw Config
+ * Fetch Lucky Draw Config directly from Supabase Cloud
  */
-export const saveLuckyDrawConfig = (config) => {
+export const fetchCloudLuckyDrawConfig = async () => {
+  const supabase = getSupabase();
+  if (!supabase) return getLuckyDrawConfig();
+
   try {
-    localStorage.setItem(LUCKY_DRAW_CONFIG_KEY, JSON.stringify(config));
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('id', 'lucky_draw_config')
+      .single();
+
+    if (!error && data && data.data) {
+      const cloudConfig = data.data;
+      const prizes = Array.isArray(cloudConfig?.prizes) && cloudConfig.prizes.length > 0
+        ? cloudConfig.prizes
+        : DEFAULT_LUCKY_DRAW_CONFIG.prizes;
+      const merged = { ...DEFAULT_LUCKY_DRAW_CONFIG, ...cloudConfig, prizes };
+      
+      try {
+        localStorage.setItem(LUCKY_DRAW_CONFIG_KEY, JSON.stringify(merged));
+      } catch {}
+      idbSet(LUCKY_DRAW_CONFIG_KEY, merged);
+      return merged;
+    }
+  } catch (err) {
+    console.warn("Cloud lucky draw config load error:", err);
+  }
+
+  return getLuckyDrawConfig();
+};
+
+/**
+ * Save Lucky Draw Config to localStorage, IndexedDB & Supabase Cloud
+ */
+export const saveLuckyDrawConfig = async (config) => {
+  const safeConfig = {
+    ...DEFAULT_LUCKY_DRAW_CONFIG,
+    ...config,
+    prizes: Array.isArray(config?.prizes) && config.prizes.length > 0 ? config.prizes : DEFAULT_LUCKY_DRAW_CONFIG.prizes
+  };
+
+  try {
+    localStorage.setItem(LUCKY_DRAW_CONFIG_KEY, JSON.stringify(safeConfig));
   } catch (e) {
     console.warn("Storage warning for lucky draw config", e);
   }
-  idbSet(LUCKY_DRAW_CONFIG_KEY, config);
+  idbSet(LUCKY_DRAW_CONFIG_KEY, safeConfig);
 
   // Sync to Supabase if available
   try {
     const supabase = getSupabase();
     if (supabase) {
-      supabase.from('settings').upsert({
+      const { error } = await supabase.from('settings').upsert({
         id: 'lucky_draw_config',
-        data: config,
+        data: safeConfig,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'id' }).catch(() => {});
+      }, { onConflict: 'id' });
+      if (error) {
+        console.warn("Supabase lucky draw upsert error:", error.message);
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("Supabase lucky draw sync failed:", err);
+  }
 };
 
 /**
@@ -100,12 +148,13 @@ export const getLuckyDrawUsers = () => {
  * Save all Lucky Draw Users
  */
 export const saveLuckyDrawUsers = (users) => {
+  const safeUsers = Array.isArray(users) ? users : [];
   try {
-    localStorage.setItem(LUCKY_DRAW_USERS_KEY, JSON.stringify(users));
+    localStorage.setItem(LUCKY_DRAW_USERS_KEY, JSON.stringify(safeUsers));
   } catch (e) {
     console.warn("Storage quota warning for users", e);
   }
-  idbSet(LUCKY_DRAW_USERS_KEY, users);
+  idbSet(LUCKY_DRAW_USERS_KEY, safeUsers);
 };
 
 /**

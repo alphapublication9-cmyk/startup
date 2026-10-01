@@ -32,7 +32,8 @@ import { CustomerAccountModal } from './components/CustomerAccountModal';
 import { CustomerReviews } from './components/CustomerReviews';
 import { AdminPage } from './components/admin/AdminPage';
 import { Footer } from './components/Footer';
-import { getSpinWheelConfig } from './utils/spinWheel';
+import { getSpinWheelConfig, fetchCloudSpinWheelConfig } from './utils/spinWheel';
+import { fetchCloudLuckyDrawConfig } from './utils/luckyDraw';
 
 import { 
   Sparkles, 
@@ -185,7 +186,9 @@ export function App() {
             fetchCloudSettings(),
             fetchCloudCoupons(),
             fetchCloudReviews(),
-            fetchCloudOrders()
+            fetchCloudOrders(),
+            fetchCloudSpinWheelConfig(),
+            fetchCloudLuckyDrawConfig()
           ]);
           if (cloudProds && cloudProds.length > 0) setProducts(cloudProds);
           if (cloudCats && cloudCats.length > 0) setCategories(cloudCats);
@@ -222,6 +225,12 @@ export function App() {
       },
       onOrdersChange: (freshOrds) => {
         if (freshOrds && freshOrds.length > 0) setOrders(freshOrds);
+      },
+      onSpinWheelConfigChange: () => {
+        // Automatically syncs to localStorage and re-triggers SpinWheelModal state
+      },
+      onLuckyDrawConfigChange: () => {
+        // Automatically syncs to localStorage
       }
     });
 
