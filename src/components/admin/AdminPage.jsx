@@ -464,9 +464,81 @@ export const AdminPage = ({
     }));
   };
 
+  const [isCompressingMultiple, setIsCompressingMultiple] = useState(false);
+
+  // Bulk Upload Multiple Photos at Once (3-4+ photos selected in one click)
+  const handleUploadMultipleProductImages = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setIsCompressingMultiple(true);
+    try {
+      const compressedList = await Promise.all(
+        files.map(async (f) => {
+          return await compressImageFile(f);
+        })
+      );
+
+      const validCompressed = compressedList.filter(Boolean);
+      if (validCompressed.length > 0) {
+        setFormData(prev => {
+          const currentValid = (prev.images || []).filter(img => img && typeof img === 'string' && img.trim().length > 0 && !img.includes('photo-1610030469983'));
+          const combined = [...currentValid, ...validCompressed].slice(0, 8);
+          return {
+            ...prev,
+            image: combined[0] || validCompressed[0],
+            images: combined
+          };
+        });
+      }
+    } catch (err) {
+      console.error("Multi-image upload error:", err);
+    } finally {
+      setIsCompressingMultiple(false);
+      e.target.value = '';
+    }
+  };
+
+  // Bulk Drop Multiple Photos at Once
+  const handleDropMultipleProductImages = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+
+    setIsCompressingMultiple(true);
+    try {
+      const compressedList = await Promise.all(
+        files.map(async (f) => {
+          return await compressImageFile(f);
+        })
+      );
+
+      const validCompressed = compressedList.filter(Boolean);
+      if (validCompressed.length > 0) {
+        setFormData(prev => {
+          const currentValid = (prev.images || []).filter(img => img && typeof img === 'string' && img.trim().length > 0 && !img.includes('photo-1610030469983'));
+          const combined = [...currentValid, ...validCompressed].slice(0, 8);
+          return {
+            ...prev,
+            image: combined[0] || validCompressed[0],
+            images: combined
+          };
+        });
+      }
+    } catch (err) {
+      console.error("Multi-image drop error:", err);
+    } finally {
+      setIsCompressingMultiple(false);
+    }
+  };
+
   const handleUploadProductImage = async (index, e) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (files.length === 1) {
+      const file = files[0];
       try {
         const resultUrl = await compressImageFile(file);
         if (resultUrl) {
@@ -480,6 +552,31 @@ export const AdminPage = ({
         }
       } catch (err) {
         console.error("Image compression error:", err);
+      }
+    } else {
+      // Multiple files selected from slot
+      setIsCompressingMultiple(true);
+      try {
+        const compressedList = await Promise.all(
+          files.map(async (f) => compressImageFile(f))
+        );
+        const valid = compressedList.filter(Boolean);
+        if (valid.length > 0) {
+          setFormData(prev => {
+            const currentImgs = [...(prev.images && prev.images.length > 0 ? prev.images : [prev.image || ''])];
+            currentImgs.splice(index, 1, ...valid);
+            const trimmed = currentImgs.filter(Boolean).slice(0, 8);
+            return {
+              ...prev,
+              image: trimmed[0] || '',
+              images: trimmed
+            };
+          });
+        }
+      } catch (err) {
+        console.error("Slot multi-upload error:", err);
+      } finally {
+        setIsCompressingMultiple(false);
       }
     }
   };
@@ -2839,6 +2936,51 @@ export const AdminPage = ({
                   </button>
                 </div>
 
+                {/* PROMINENT BULK MULTI-PHOTO UPLOAD DROPZONE (3-4 Photos at once) */}
+                <div 
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={handleDropMultipleProductImages}
+                  className="p-3 sm:p-4 bg-amber-100/60 border-2 border-dashed border-amber-400 hover:border-[#700b1d] rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors text-center sm:text-left shadow-2xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#700b1d] text-gold-200 flex items-center justify-center shrink-0 shadow-xs">
+                      {isCompressingMultiple ? (
+                        <div className="w-5 h-5 border-2 border-gold-200 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <ImageIcon size={20} />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 justify-center sm:justify-start">
+                        <span className="font-extrabold text-amber-950 text-xs sm:text-sm">
+                          {isCompressingMultiple ? '⚡ Compressing & Adding Photos...' : '📁 Select 3-4 Photos Together (Bulk Upload)'}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-gold-400 text-stone-950 text-[9px] font-black rounded-md uppercase tracking-wider">
+                          Fast Multi-Select
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-600 mt-0.5">
+                        Select multiple files or drag & drop. All photos automatically compress to lightweight WebP & fill the slots!
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    <label className="px-3.5 py-2 royal-maroon-bg text-gold-100 hover:text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-95">
+                      <Upload size={14} />
+                      <span>{isCompressingMultiple ? 'Processing...' : 'Browse 3-4 Photos'}</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleUploadMultipleProductImages}
+                        disabled={isCompressingMultiple}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
                 {/* List of Photo Slots */}
                 <div className="space-y-3">
                   {(formData.images && formData.images.length > 0 ? formData.images : [formData.image || '']).map((imgUrl, idx) => (
@@ -2940,10 +3082,11 @@ export const AdminPage = ({
 
                           <div>
                             <span className="text-[11px] font-bold text-stone-700 block mb-1">
-                              Option B: Choose Image File from Device
+                              Option B: Choose Image(s) from Device (Single or Multiple)
                             </span>
                             <input
                               type="file"
+                              multiple
                               accept="image/*"
                               onChange={(e) => handleUploadProductImage(idx, e)}
                               className="w-full text-xs text-stone-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-stone-900 file:text-gold-200 hover:file:bg-black cursor-pointer"
