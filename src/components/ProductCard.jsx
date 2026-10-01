@@ -45,18 +45,42 @@ export const ProductCard = ({
       onClick={() => onQuickView(product)}
       className="group bg-white rounded-3xl overflow-hidden border border-[#ebdcc7]/80 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer relative"
     >
-      {/* Top Image Container */}
+      {/* Top Image Container with Multi-Image Hover Flip */}
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-stone-100">
         <img
           src={normalizeImageUrl(product.image)}
           alt={product.name}
-          className="w-full h-full object-cover object-top group-hover:scale-108 transition-transform duration-700 ease-out"
+          className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out ${
+            product.images && product.images.length > 1 ? 'group-hover:opacity-0 group-hover:scale-108' : 'group-hover:scale-108'
+          }`}
           loading="lazy"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
           }}
         />
+
+        {/* Alternate Image on Hover if Available */}
+        {product.images && product.images.length > 1 && (
+          <img
+            src={normalizeImageUrl(product.images[1])}
+            alt={`${product.name} alternate view`}
+            className="absolute inset-0 w-full h-full object-cover object-top opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500 ease-out pointer-events-none"
+            loading="lazy"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = normalizeImageUrl(product.image);
+            }}
+          />
+        )}
+
+        {/* Multi-Photo Count Badge */}
+        {product.images && product.images.length > 1 && (
+          <div className="absolute top-3 right-14 bg-stone-900/75 text-gold-200 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs flex items-center gap-1 shadow-sm border border-gold-500/20 z-20">
+            <span>📷</span>
+            <span>{product.images.length} Views</span>
+          </div>
+        )}
 
         {/* Wishlist Floating Button */}
         <motion.button
