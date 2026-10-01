@@ -107,145 +107,124 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
 
           <div className="grid grid-cols-1 md:grid-cols-2 max-h-[92vh] overflow-y-auto">
             
-            {/* Left Column: Amazon-Style Multi-Photo Gallery Studio */}
-            <div className="p-3 sm:p-5 md:p-6 bg-[#faf5ed] flex flex-col justify-between">
+            {/* Left Column: Multi-Photo Gallery Studio */}
+            <div className="p-3 sm:p-5 md:p-6 bg-[#faf5ed] flex flex-col justify-start space-y-3">
               
-              <div className="flex flex-col md:flex-row-reverse gap-3 md:gap-3.5 items-center md:items-start w-full">
-                
-                {/* Main Active Image Viewport with Next/Prev Arrows & Zoom */}
-                <div 
-                  onClick={() => handleOpenLightbox(selectedImageIndex)}
-                  className="relative aspect-[3/4] max-h-72 sm:max-h-96 md:max-h-none w-full flex-1 rounded-2xl overflow-hidden border border-gold-300/50 shadow-md group cursor-zoom-in select-none"
-                  title="Click to Enlarge / Full Screen Photo"
-                >
-                  <motion.img
-                    key={activeImage}
-                    initial={{ opacity: 0.6 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.25 }}
-                    src={normalizeImageUrl(activeImage)}
-                    alt={product.name}
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 pointer-events-none"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                    }}
-                  />
+              {/* Main Active Image Viewport with Slide Arrows & Zoom */}
+              <div 
+                onClick={() => handleOpenLightbox(selectedImageIndex)}
+                className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-gold-300/50 shadow-md group cursor-zoom-in select-none bg-white"
+                title="Click to Enlarge / Full Screen Photo"
+              >
+                <motion.img
+                  key={activeImage}
+                  initial={{ opacity: 0.7 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                  src={normalizeImageUrl(activeImage)}
+                  alt={product.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                  }}
+                />
 
-                  {/* Left & Right Slide Navigation Arrows (Amazon Style) */}
-                  {images.length > 1 && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
-                        }}
-                        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-950/75 hover:bg-[#700b1d] text-white flex items-center justify-center shadow-xl border border-white/25 transition-all hover:scale-110 active:scale-95 cursor-pointer z-20 backdrop-blur-xs"
-                        aria-label="Previous Photo"
-                        title="Previous Photo"
-                      >
-                        <ChevronLeft size={20} />
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedImageIndex((prev) => (prev + 1) % images.length);
-                        }}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-950/75 hover:bg-[#700b1d] text-white flex items-center justify-center shadow-xl border border-white/25 transition-all hover:scale-110 active:scale-95 cursor-pointer z-20 backdrop-blur-xs"
-                        aria-label="Next Photo"
-                        title="Next Photo"
-                      >
-                        <ChevronRight size={20} />
-                      </button>
-                    </>
-                  )}
+                {/* Left & Right Slide Navigation Arrows */}
+                {images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
+                      }}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-950/80 hover:bg-[#700b1d] text-white flex items-center justify-center shadow-xl border border-white/30 transition-all hover:scale-110 active:scale-95 cursor-pointer z-20 backdrop-blur-xs"
+                      aria-label="Previous Photo"
+                      title="Previous Photo"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImageIndex((prev) => (prev + 1) % images.length);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-950/80 hover:bg-[#700b1d] text-white flex items-center justify-center shadow-xl border border-white/30 transition-all hover:scale-110 active:scale-95 cursor-pointer z-20 backdrop-blur-xs"
+                      aria-label="Next Photo"
+                      title="Next Photo"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                )}
 
-                  {/* Enlarge / Fullscreen Floating Trigger Pill */}
-                  <div className="absolute top-3 right-3 bg-stone-950/80 hover:bg-[#700b1d] text-white text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md border border-white/20 transition-all opacity-90 group-hover:opacity-100 group-hover:scale-105 z-20">
-                    <ZoomIn size={13} className="text-gold-300" />
-                    <span>Enlarge Photo</span>
-                  </div>
-
-                  {/* Photo Counter Badge */}
-                  {images.length > 1 && (
-                    <div className="absolute bottom-3 right-3 bg-stone-900/85 text-gold-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full backdrop-blur-sm border border-gold-500/30 z-20">
-                      {selectedImageIndex + 1} / {images.length}
-                    </div>
-                  )}
-
-                  {/* Bottom Pagination Dots (Amazon Mobile Style) */}
-                  {images.length > 1 && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 bg-stone-900/60 px-2 py-1 rounded-full backdrop-blur-xs">
-                      {images.map((_, dotIdx) => (
-                        <button
-                          key={dotIdx}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedImageIndex(dotIdx);
-                          }}
-                          className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
-                            selectedImageIndex === dotIdx 
-                              ? 'w-5 bg-gold-400' 
-                              : 'bg-white/60 hover:bg-white'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {product.badge && (
-                    <span className="absolute top-2.5 left-2.5 royal-maroon-bg text-gold-100 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-gold-400/40 z-20">
-                      {product.badge}
-                    </span>
-                  )}
-                  {product.offer && (
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-[#700b1d] via-[#4a040e] to-[#260107] text-gold-200 px-2.5 py-1 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-md border-t border-gold-500/30 z-10">
-                      <Sparkles size={13} className="text-gold-300 animate-spin" style={{ animationDuration: '4s' }} />
-                      <span>{product.offer}</span>
-                    </div>
-                  )}
+                {/* Enlarge / Fullscreen Floating Trigger Pill */}
+                <div className="absolute top-3 right-3 bg-stone-950/85 hover:bg-[#700b1d] text-white text-[10px] sm:text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md border border-white/20 transition-all opacity-95 group-hover:opacity-100 group-hover:scale-105 z-20">
+                  <ZoomIn size={12} className="text-gold-300" />
+                  <span>Enlarge Photo</span>
                 </div>
 
-                {/* Amazon-Style Left Side Vertical Thumbnails on Desktop / Horizontal on Mobile */}
+                {/* Photo Counter Badge */}
                 {images.length > 1 && (
-                  <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto w-full md:w-16 shrink-0 py-1 md:max-h-[380px] no-scrollbar scrollbar-none">
-                    {images.map((img, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setSelectedImageIndex(idx)}
-                        onMouseEnter={() => setSelectedImageIndex(idx)}
-                        className={`w-14 sm:w-16 h-18 sm:h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer relative group ${
-                          selectedImageIndex === idx 
-                            ? 'border-[#700b1d] scale-105 shadow-md ring-2 ring-gold-400/50' 
-                            : 'border-stone-300/80 opacity-60 hover:opacity-100 hover:border-gold-500'
-                        }`}
-                        title={`View Photo ${idx + 1}`}
-                      >
-                        <img 
-                          src={normalizeImageUrl(img)} 
-                          alt={`View ${idx + 1}`} 
-                          className="w-full h-full object-cover object-top" 
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                          }}
-                        />
-                        <span className={`absolute bottom-0.5 right-0.5 text-[8px] font-bold px-1 rounded ${
-                          selectedImageIndex === idx ? 'bg-[#700b1d] text-white' : 'bg-black/70 text-white'
-                        }`}>
-                          {idx + 1}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="absolute bottom-3 right-3 bg-stone-900/90 text-gold-200 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full backdrop-blur-sm border border-gold-500/40 z-20">
+                    {selectedImageIndex + 1} / {images.length} Photos
                   </div>
                 )}
 
+                {/* Ribbon Badge */}
+                {product.badge && (
+                  <span className="absolute top-2.5 left-2.5 royal-maroon-bg text-gold-100 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-gold-400/40 z-20 shadow-sm">
+                    {product.badge}
+                  </span>
+                )}
+
+                {/* Offer Banner */}
+                {product.offer && (
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-[#700b1d] via-[#4a040e] to-[#260107] text-gold-200 px-2.5 py-1 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-md border-t border-gold-500/30 z-10">
+                    <Sparkles size={13} className="text-gold-300 animate-spin" style={{ animationDuration: '4s' }} />
+                    <span>{product.offer}</span>
+                  </div>
+                )}
               </div>
+
+              {/* Multi-Photo Thumbnail Bar Below the Main Photo */}
+              {images.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 w-full scrollbar-none no-scrollbar justify-center sm:justify-start">
+                  {images.map((img, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSelectedImageIndex(idx)}
+                      onMouseEnter={() => setSelectedImageIndex(idx)}
+                      className={`w-14 h-18 sm:w-16 sm:h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer relative group bg-white shadow-xs ${
+                        selectedImageIndex === idx 
+                          ? 'border-[#700b1d] scale-105 shadow-md ring-2 ring-gold-400/60' 
+                          : 'border-stone-300/80 opacity-60 hover:opacity-100 hover:border-amber-600'
+                      }`}
+                      title={`View Photo ${idx + 1}`}
+                    >
+                      <img 
+                        src={normalizeImageUrl(img)} 
+                        alt={`View ${idx + 1}`} 
+                        className="w-full h-full object-cover object-top" 
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                        }}
+                      />
+                      <span className={`absolute bottom-0.5 right-0.5 text-[8px] font-bold px-1 rounded ${
+                        selectedImageIndex === idx ? 'bg-[#700b1d] text-white' : 'bg-black/70 text-white'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
             </div>
 
           {/* Right Column: Details & Ordering */}
