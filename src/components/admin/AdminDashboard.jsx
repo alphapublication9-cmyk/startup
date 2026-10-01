@@ -36,6 +36,7 @@ import {
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
+import { compressImageFile } from '../../utils/imageCompressor';
 
 export const AdminDashboard = ({ 
   isOpen, 
@@ -123,17 +124,20 @@ export const AdminDashboard = ({
   };
 
   // Handle Photo File Upload
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({
-          ...prev,
-          image: reader.result
-        }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const resultUrl = await compressImageFile(file);
+        if (resultUrl) {
+          setFormData(prev => ({
+            ...prev,
+            image: resultUrl
+          }));
+        }
+      } catch (err) {
+        console.error("Image compression error:", err);
+      }
     }
   };
 

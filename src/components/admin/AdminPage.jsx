@@ -60,6 +60,7 @@ import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialP
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
+import { compressImageFile } from '../../utils/imageCompressor';
 import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
@@ -448,33 +449,38 @@ export const AdminPage = ({
     }));
   };
 
-  const handleUploadProductImage = (index, e) => {
+  const handleUploadProductImage = async (index, e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const resultUrl = reader.result;
-        const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
-        currentImgs[index] = resultUrl;
-        setFormData(prev => ({
-          ...prev,
-          image: index === 0 ? resultUrl : (prev.image || currentImgs[0]),
-          images: currentImgs
-        }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const resultUrl = await compressImageFile(file);
+        if (resultUrl) {
+          const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
+          currentImgs[index] = resultUrl;
+          setFormData(prev => ({
+            ...prev,
+            image: index === 0 ? resultUrl : (prev.image || currentImgs[0]),
+            images: currentImgs
+          }));
+        }
+      } catch (err) {
+        console.error("Image compression error:", err);
+      }
     }
   };
 
   // Handle Photo File Upload for Category
-  const handleCategoryFileUpload = (e) => {
+  const handleCategoryFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCategoryFormData(prev => ({ ...prev, image: reader.result }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const resultUrl = await compressImageFile(file);
+        if (resultUrl) {
+          setCategoryFormData(prev => ({ ...prev, image: resultUrl }));
+        }
+      } catch (err) {
+        console.error("Category image compression error:", err);
+      }
     }
   };
 

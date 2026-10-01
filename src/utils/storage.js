@@ -1,6 +1,7 @@
 import { INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../data/initialProducts';
 import { INITIAL_SETTINGS } from '../data/initialSettings';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../data/initialCoupons';
+import { idbGet, idbSet } from './indexedDBStorage';
 
 const PRODUCTS_KEY = 'aura_kurti_products_v5';
 const CATEGORIES_KEY = 'aura_kurti_categories_v5';
@@ -11,6 +12,7 @@ const COUPONS_KEY = 'aura_kurti_coupons_v3';
 const REVIEWS_KEY = 'aura_kurti_reviews_v3';
 const WISHLIST_KEY = 'aura_kurti_wishlist_v3';
 
+// Synchronous initial getters (fallback to localStorage or Initial Data)
 export const getStoredCategories = () => {
   try {
     const data = localStorage.getItem(CATEGORIES_KEY);
@@ -25,8 +27,9 @@ export const saveStoredCategories = (categories) => {
   try {
     localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
   } catch (e) {
-    console.error("Failed to save categories", e);
+    console.warn("LocalStorage full, saving to IndexedDB instead", e);
   }
+  idbSet(CATEGORIES_KEY, categories);
 };
 
 export const getStoredProducts = () => {
@@ -43,8 +46,9 @@ export const saveStoredProducts = (products) => {
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   } catch (e) {
-    console.error("Failed to save products", e);
+    console.warn("LocalStorage quota exceeded, saving to IndexedDB instead", e);
   }
+  idbSet(PRODUCTS_KEY, products);
 };
 
 export const getStoredSettings = () => {
@@ -61,8 +65,9 @@ export const saveStoredSettings = (settings) => {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch (e) {
-    console.error("Failed to save settings", e);
+    console.warn("Failed to save settings to localStorage", e);
   }
+  idbSet(SETTINGS_KEY, settings);
 };
 
 export const getStoredOrders = () => {
@@ -79,7 +84,12 @@ export const saveNewOrder = (order) => {
   try {
     const orders = getStoredOrders();
     const updated = [order, ...orders];
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+    try {
+      localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    idbSet(ORDERS_KEY, updated);
     return updated;
   } catch (e) {
     console.error("Failed to save order", e);
@@ -101,8 +111,9 @@ export const saveStoredCoupons = (coupons) => {
   try {
     localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
   } catch (e) {
-    console.error("Failed to save coupons", e);
+    console.warn(e);
   }
+  idbSet(COUPONS_KEY, coupons);
 };
 
 export const getStoredReviews = () => {
@@ -119,8 +130,9 @@ export const saveStoredReviews = (reviews) => {
   try {
     localStorage.setItem(REVIEWS_KEY, JSON.stringify(reviews));
   } catch (e) {
-    console.error("Failed to save reviews", e);
+    console.warn(e);
   }
+  idbSet(REVIEWS_KEY, reviews);
 };
 
 export const getStoredWishlist = () => {
@@ -137,8 +149,9 @@ export const saveStoredWishlist = (wishlist) => {
   try {
     localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
   } catch (e) {
-    console.error("Failed to save wishlist", e);
+    console.warn(e);
   }
+  idbSet(WISHLIST_KEY, wishlist);
 };
 
 export const getAdminAuthStatus = () => {
@@ -158,5 +171,32 @@ export const setAdminAuthStatus = (status) => {
     }
   } catch (e) {
     console.error("Failed to set admin auth", e);
+  }
+};
+
+/**
+ * Async Loader to hydrate app state from IndexedDB Database
+ */
+export const loadAllFromIndexedDB = async () => {
+  try {
+    const [idbProducts, idbCategories, idbSettings, idbOrders, idbCoupons, idbReviews] = await Promise.all([
+      idbGet(PRODUCTS_KEY),
+      idbGet(CATEGORIES_KEY),
+      idbGet(SETTINGS_KEY),
+      idbGet(ORDERS_KEY),
+      idbGet(COUPONS_KEY),
+      idbGet(REVIEWS_KEY)
+    ]);
+    return {
+      products: idbProducts,
+      categories: idbCategories,
+      settings: idbSettings,
+      orders: idbOrders,
+      coupons: idbCoupons,
+      reviews: idbReviews
+    };
+  } catch (err) {
+    console.warn("Failed to load data from IndexedDB:", err);
+    return {};
   }
 };

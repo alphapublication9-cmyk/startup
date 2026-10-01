@@ -14,7 +14,8 @@ import {
   getStoredWishlist,
   saveStoredWishlist,
   getAdminAuthStatus, 
-  setAdminAuthStatus 
+  setAdminAuthStatus,
+  loadAllFromIndexedDB
 } from './utils/storage';
 
 import { Navbar } from './components/Navbar';
@@ -127,9 +128,23 @@ export function App() {
     };
   }, []);
 
-  // Initial Cloud Data Fetching & Sync
+  // Initial Data Fetching from IndexedDB & Cloud Sync
   useEffect(() => {
-    const loadCloudData = async () => {
+    const loadAppData = async () => {
+      // 1. First hydrate from browser's permanent IndexedDB
+      try {
+        const idbData = await loadAllFromIndexedDB();
+        if (idbData.products && idbData.products.length > 0) setProducts(idbData.products);
+        if (idbData.categories && idbData.categories.length > 0) setCategories(idbData.categories);
+        if (idbData.settings && Object.keys(idbData.settings).length > 0) setSettings(idbData.settings);
+        if (idbData.coupons && idbData.coupons.length > 0) setCoupons(idbData.coupons);
+        if (idbData.reviews && idbData.reviews.length > 0) setReviews(idbData.reviews);
+        if (idbData.orders && idbData.orders.length > 0) setOrders(idbData.orders);
+      } catch (e) {
+        console.warn("IndexedDB hydration error:", e);
+      }
+
+      // 2. Fetch from Supabase Cloud if configured
       if (isSupabaseConfigured()) {
         try {
           const [cloudProds, cloudCats, cloudSets, cloudCpns, cloudRevs, cloudOrds] = await Promise.all([
@@ -151,7 +166,7 @@ export function App() {
         }
       }
     };
-    loadCloudData();
+    loadAppData();
   }, []);
 
   // Save cart to local storage
