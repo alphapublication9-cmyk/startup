@@ -45,17 +45,26 @@ import {
 import { getDirectChannelLink } from './utils/whatsapp';
 import { 
   fetchCloudProducts, 
+  saveCloudProduct,
+  deleteCloudProduct,
   syncCloudProducts, 
   fetchCloudCategories, 
+  saveCloudCategory,
+  deleteCloudCategory,
   syncCloudCategories, 
   fetchCloudSettings, 
   syncCloudSettings, 
   fetchCloudCoupons, 
+  saveCloudCoupon,
+  deleteCloudCoupon,
   syncCloudCoupons, 
   fetchCloudReviews, 
+  saveCloudReview,
+  deleteCloudReview,
   syncCloudReviews, 
   fetchCloudOrders,
-  recordCloudOrder
+  recordCloudOrder,
+  subscribeToCloudChanges
 } from './utils/cloudSync';
 import { isSupabaseConfigured } from './utils/supabaseClient';
 
@@ -169,6 +178,35 @@ export function App() {
     loadAppData();
   }, []);
 
+  // Realtime Live Synchronization across all devices / phones
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const unsubscribe = subscribeToCloudChanges({
+      onProductsChange: (freshProds) => {
+        if (freshProds && freshProds.length > 0) setProducts(freshProds);
+      },
+      onCategoriesChange: (freshCats) => {
+        if (freshCats && freshCats.length > 0) setCategories(freshCats);
+      },
+      onSettingsChange: (freshSets) => {
+        if (freshSets && Object.keys(freshSets).length > 0) setSettings(freshSets);
+      },
+      onCouponsChange: (freshCpns) => {
+        if (freshCpns && freshCpns.length > 0) setCoupons(freshCpns);
+      },
+      onReviewsChange: (freshRevs) => {
+        if (freshRevs && freshRevs.length > 0) setReviews(freshRevs);
+      },
+      onOrdersChange: (freshOrds) => {
+        if (freshOrds && freshOrds.length > 0) setOrders(freshOrds);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
   // Save cart to local storage
   useEffect(() => {
     try {
@@ -243,7 +281,60 @@ export function App() {
     setCartItems([]);
   };
 
-  // Admin Handlers (Saves both locally and to Supabase Cloud)
+  // Admin Single Item Instant Cloud Handlers
+  const handleSaveSingleProduct = async (product) => {
+    setProducts(prev => {
+      const exists = prev.some(p => p.id === product.id);
+      return exists ? prev.map(p => p.id === product.id ? product : p) : [product, ...prev];
+    });
+    await saveCloudProduct(product);
+  };
+
+  const handleDeleteSingleProduct = async (productId) => {
+    setProducts(prev => prev.filter(p => String(p.id) !== String(productId)));
+    await deleteCloudProduct(productId);
+  };
+
+  const handleSaveSingleCategory = async (cat) => {
+    setCategories(prev => {
+      const cName = typeof cat === 'string' ? cat : cat.name;
+      const exists = prev.some(c => (c.id && c.id === cat.id) || (typeof c === 'string' ? c === cName : c.name === cName));
+      return exists 
+        ? prev.map(c => ((c.id && c.id === cat.id) || (typeof c === 'string' ? c === cName : c.name === cName)) ? cat : c)
+        : [...prev, cat];
+    });
+    await saveCloudCategory(cat);
+  };
+
+  const handleDeleteSingleCategory = async (catId, catName) => {
+    setCategories(prev => prev.filter(c => {
+      const name = typeof c === 'string' ? c : c.name;
+      return c.id !== catId && name !== catName;
+    }));
+    await deleteCloudCategory(catId, catName);
+  };
+
+  const handleSaveSingleCoupon = async (coupon) => {
+    setCoupons(prev => [coupon, ...prev.filter(c => c.code !== coupon.code)]);
+    await saveCloudCoupon(coupon);
+  };
+
+  const handleDeleteSingleCoupon = async (code) => {
+    setCoupons(prev => prev.filter(c => c.code !== code));
+    await deleteCloudCoupon(code);
+  };
+
+  const handleSaveSingleReview = async (review) => {
+    setReviews(prev => [review, ...prev.filter(r => r.id !== review.id)]);
+    await saveCloudReview(review);
+  };
+
+  const handleDeleteSingleReview = async (reviewId) => {
+    setReviews(prev => prev.filter(r => r.id !== reviewId));
+    await deleteCloudReview(reviewId);
+  };
+
+  // Bulk Admin Handlers (Saves both locally and to Supabase Cloud)
   const handleSaveProducts = (newProducts) => {
     setProducts(newProducts);
     saveStoredProducts(newProducts);
@@ -340,12 +431,20 @@ export function App() {
       <AdminPage
         products={products}
         onSaveProducts={handleSaveProducts}
+        onSaveSingleProduct={handleSaveSingleProduct}
+        onDeleteSingleProduct={handleDeleteSingleProduct}
         categories={categories}
         onSaveCategories={handleSaveCategories}
+        onSaveSingleCategory={handleSaveSingleCategory}
+        onDeleteSingleCategory={handleDeleteSingleCategory}
         coupons={coupons}
         onSaveCoupons={handleSaveCoupons}
+        onSaveSingleCoupon={handleSaveSingleCoupon}
+        onDeleteSingleCoupon={handleDeleteSingleCoupon}
         reviews={reviews}
         onSaveReviews={handleSaveReviews}
+        onSaveSingleReview={handleSaveSingleReview}
+        onDeleteSingleReview={handleDeleteSingleReview}
         settings={settings}
         onSaveSettings={handleSaveSettings}
         orders={orders}

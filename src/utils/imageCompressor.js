@@ -3,16 +3,29 @@
  * Reduces 5MB-15MB camera photos down to 30KB-60KB while preserving high visual sharpness.
  */
 export const compressImageFile = (file, maxWidth = 650, maxHeight = 850, quality = 0.74) => {
-  return new Promise((resolve, reject) => {
-    if (!file || !file.type.startsWith('image/')) {
+  return new Promise((resolve) => {
+    if (!file) {
       resolve('');
       return;
     }
 
+    // Safety timeout in case browser gets stuck reading massive RAW photos
+    const timer = setTimeout(() => {
+      resolve('');
+    }, 8000);
+
     const reader = new FileReader();
-    reader.onerror = () => resolve('');
+    reader.onerror = () => {
+      clearTimeout(timer);
+      resolve('');
+    };
     reader.onload = (e) => {
-      const dataUrl = e.target.result;
+      clearTimeout(timer);
+      const dataUrl = e.target?.result;
+      if (!dataUrl || typeof dataUrl !== 'string') {
+        resolve('');
+        return;
+      }
       compressDataUrl(dataUrl, maxWidth, maxHeight, quality)
         .then(resolve)
         .catch(() => resolve(dataUrl));

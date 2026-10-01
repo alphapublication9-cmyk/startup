@@ -80,12 +80,20 @@ import {
 export const AdminPage = ({ 
   products = [], 
   onSaveProducts, 
+  onSaveSingleProduct,
+  onDeleteSingleProduct,
   categories = [], 
   onSaveCategories, 
+  onSaveSingleCategory,
+  onDeleteSingleCategory,
   coupons = [],
   onSaveCoupons,
+  onSaveSingleCoupon,
+  onDeleteSingleCoupon,
   reviews = [],
   onSaveReviews,
+  onSaveSingleReview,
+  onDeleteSingleReview,
   settings = {}, 
   onSaveSettings, 
   orders = [], 
@@ -502,57 +510,75 @@ export const AdminPage = ({
   };
 
   // Save Product (Add or Edit with Multi-Image Support)
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
+    setIsSavingProduct(true);
 
-    const rawImages = (formData.images || [formData.image])
-      .map(img => typeof img === 'string' ? normalizeImageUrl(img.trim()) : '')
-      .filter(Boolean);
+    try {
+      const rawImages = (formData.images || [formData.image])
+        .map(img => typeof img === 'string' ? normalizeImageUrl(img.trim()) : '')
+        .filter(Boolean);
 
-    // Compress any uncompressed data URLs to ensure lightweight storage
-    const cleanImages = await Promise.all(
-      rawImages.map(async (img) => {
-        if (img && img.startsWith('data:image/')) {
-          try {
-            return await compressDataUrl(img);
-          } catch {
-            return img;
+      // Compress any uncompressed data URLs to ensure lightweight storage
+      const cleanImages = await Promise.all(
+        rawImages.map(async (img) => {
+          if (img && img.startsWith('data:image/')) {
+            try {
+              return await compressDataUrl(img);
+            } catch {
+              return img;
+            }
           }
+          return img;
+        })
+      );
+
+      const primaryImg = cleanImages[0] || normalizeImageUrl(formData.image) || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80';
+      const finalImages = cleanImages.length > 0 ? cleanImages : [primaryImg];
+
+      const finalProduct = {
+        ...formData,
+        id: editingProduct ? editingProduct.id : (formData.id || `item-${Date.now()}`),
+        image: primaryImg,
+        images: finalImages
+      };
+
+      if (onSaveSingleProduct) {
+        await onSaveSingleProduct(finalProduct);
+      } else {
+        let updatedProducts;
+        if (editingProduct) {
+          updatedProducts = products.map(p => p.id === editingProduct.id ? finalProduct : p);
+        } else {
+          updatedProducts = [{ ...finalProduct, id: `item-${Date.now()}` }, ...products];
         }
-        return img;
-      })
-    );
+        onSaveProducts(updatedProducts);
+      }
 
-    const primaryImg = cleanImages[0] || normalizeImageUrl(formData.image) || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80';
-    const finalImages = cleanImages.length > 0 ? cleanImages : [primaryImg];
-
-    const finalProduct = {
-      ...formData,
-      image: primaryImg,
-      images: finalImages
-    };
-
-    let updatedProducts;
-    if (editingProduct) {
-      updatedProducts = products.map(p => p.id === editingProduct.id ? finalProduct : p);
-      setSaveSuccessMsg(`Item "${finalProduct.name}" updated with ${finalImages.length} photos!`);
-    } else {
-      updatedProducts = [{ ...finalProduct, id: `item-${Date.now()}` }, ...products];
-      setSaveSuccessMsg(`New item "${finalProduct.name}" added with ${finalImages.length} photos!`);
+      setSaveSuccessMsg(`✅ Item "${finalProduct.name}" saved & synced live to cloud!`);
+      setIsEditModalOpen(false);
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error("Error saving product:", err);
+      alert("Failed to save product: " + err.message);
+    } finally {
+      setIsSavingProduct(false);
     }
-
-    onSaveProducts(updatedProducts);
-    setIsEditModalOpen(false);
-    setTimeout(() => setSaveSuccessMsg(''), 3500);
   };
 
   // Delete Product
-  const handleDeleteProduct = (id) => {
+  const handleDeleteProduct = async (id) => {
     if (window.confirm('Are you sure you want to delete this item from your boutique catalog?')) {
-      const updated = products.filter(p => p.id !== id);
-      onSaveProducts(updated);
-      setSaveSuccessMsg('Item deleted successfully.');
+      if (onDeleteSingleProduct) {
+        await onDeleteSingleProduct(id);
+      } else {
+        const updated = products.filter(p => p.id !== id);
+        onSaveProducts(updated);
+      }
+      setSaveSuccessMsg('Item deleted successfully from local & cloud.');
       setTimeout(() => setSaveSuccessMsg(''), 3000);
     }
   };
@@ -584,100 +610,142 @@ export const AdminPage = ({
   };
 
   // Save Category (Add or Edit)
-  const handleSaveCategory = (e) => {
+  const handleSaveCategory = async (e) => {
     e.preventDefault();
     if (!categoryFormData.name.trim()) return;
 
-    let updatedCategories;
-    if (editingCategory) {
-      updatedCategories = categories.map(c => {
-        const cName = typeof c === 'string' ? c : c.name;
-        const editingName = typeof editingCategory === 'string' ? editingCategory : editingCategory.name;
-        if (c.id === editingCategory.id || cName === editingName) {
-          return { ...categoryFormData, name: categoryFormData.name.trim() };
-        }
-        return c;
-      });
-      setSaveSuccessMsg(`Category "${categoryFormData.name}" updated successfully!`);
-    } else {
-      const newCat = { ...categoryFormData, id: `cat-${Date.now()}`, name: categoryFormData.name.trim() };
-      updatedCategories = [...categories, newCat];
-      setSaveSuccessMsg(`New Category "${newCat.name}" created successfully!`);
+    if (categoryFormData.image && categoryFormData.image.startsWith('data:image/')) {
+      try {
+        categoryFormData.image = await compressDataUrl(categoryFormData.image);
+      } catch {}
     }
 
-    onSaveCategories(updatedCategories);
+    const finalCat = {
+      ...categoryFormData,
+      id: editingCategory?.id || categoryFormData.id || `cat-${Date.now()}`,
+      name: categoryFormData.name.trim()
+    };
+
+    if (onSaveSingleCategory) {
+      await onSaveSingleCategory(finalCat);
+    } else {
+      let updatedCategories;
+      if (editingCategory) {
+        updatedCategories = categories.map(c => {
+          const cName = typeof c === 'string' ? c : c.name;
+          const editingName = typeof editingCategory === 'string' ? editingCategory : editingCategory.name;
+          if (c.id === editingCategory.id || cName === editingName) {
+            return finalCat;
+          }
+          return c;
+        });
+      } else {
+        updatedCategories = [...categories, finalCat];
+      }
+      onSaveCategories(updatedCategories);
+    }
+
+    setSaveSuccessMsg(`Category "${finalCat.name}" saved & synced to cloud!`);
     setIsCategoryModalOpen(false);
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
   // Delete Category
-  const handleDeleteCategory = (catId, catName) => {
+  const handleDeleteCategory = async (catId, catName) => {
     if (window.confirm(`Are you sure you want to delete category "${catName}"?`)) {
-      const updatedCategories = categories.filter(c => {
-        const name = typeof c === 'string' ? c : c.name;
-        return c.id !== catId && name !== catName;
-      });
-      onSaveCategories(updatedCategories);
+      if (onDeleteSingleCategory) {
+        await onDeleteSingleCategory(catId, catName);
+      } else {
+        const updatedCategories = categories.filter(c => {
+          const name = typeof c === 'string' ? c : c.name;
+          return c.id !== catId && name !== catName;
+        });
+        onSaveCategories(updatedCategories);
+      }
       setSaveSuccessMsg(`Category "${catName}" removed.`);
       setTimeout(() => setSaveSuccessMsg(''), 3000);
     }
   };
 
   // Coupon Handlers
-  const handleSaveCoupon = (e) => {
+  const handleSaveCoupon = async (e) => {
     e.preventDefault();
     if (!couponFormData.code.trim()) return;
 
     const newCoupon = {
       ...couponFormData,
-      id: `coup-${Date.now()}`,
+      id: couponFormData.id || `coup-${Date.now()}`,
       code: couponFormData.code.trim().toUpperCase(),
       discountValue: Number(couponFormData.discountValue) || 10,
       minOrderAmount: Number(couponFormData.minOrderAmount) || 0
     };
 
-    const updated = [newCoupon, ...coupons.filter(c => c.code !== newCoupon.code)];
-    onSaveCoupons(updated);
+    if (onSaveSingleCoupon) {
+      await onSaveSingleCoupon(newCoupon);
+    } else {
+      const updated = [newCoupon, ...coupons.filter(c => c.code !== newCoupon.code)];
+      onSaveCoupons(updated);
+    }
     setIsCouponModalOpen(false);
-    setSaveSuccessMsg(`Coupon "${newCoupon.code}" created successfully!`);
+    setSaveSuccessMsg(`Coupon "${newCoupon.code}" created & synced to cloud!`);
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
-  const handleToggleCoupon = (code) => {
-    const updated = coupons.map(c => c.code === code ? { ...c, isActive: !c.isActive } : c);
-    onSaveCoupons(updated);
+  const handleToggleCoupon = async (code) => {
+    const target = coupons.find(c => c.code === code);
+    if (target) {
+      const updatedItem = { ...target, isActive: !target.isActive };
+      if (onSaveSingleCoupon) {
+        await onSaveSingleCoupon(updatedItem);
+      } else {
+        const updated = coupons.map(c => c.code === code ? updatedItem : c);
+        onSaveCoupons(updated);
+      }
+    }
   };
 
-  const handleDeleteCoupon = (code) => {
+  const handleDeleteCoupon = async (code) => {
     if (window.confirm(`Delete coupon "${code}"?`)) {
-      const updated = coupons.filter(c => c.code !== code);
-      onSaveCoupons(updated);
+      if (onDeleteSingleCoupon) {
+        await onDeleteSingleCoupon(code);
+      } else {
+        const updated = coupons.filter(c => c.code !== code);
+        onSaveCoupons(updated);
+      }
       setSaveSuccessMsg(`Coupon "${code}" deleted.`);
       setTimeout(() => setSaveSuccessMsg(''), 3000);
     }
   };
 
   // Review Handlers
-  const handleSaveReview = (e) => {
+  const handleSaveReview = async (e) => {
     e.preventDefault();
     if (!reviewFormData.name.trim() || !reviewFormData.comment.trim()) return;
 
     const newRev = {
       ...reviewFormData,
-      id: `rev-${Date.now()}`
+      id: reviewFormData.id || `rev-${Date.now()}`
     };
 
-    const updated = [newRev, ...reviews];
-    onSaveReviews(updated);
+    if (onSaveSingleReview) {
+      await onSaveSingleReview(newRev);
+    } else {
+      const updated = [newRev, ...reviews];
+      onSaveReviews(updated);
+    }
     setIsReviewModalOpen(false);
-    setSaveSuccessMsg('Customer review added successfully!');
+    setSaveSuccessMsg('Customer review added & synced to cloud!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
-  const handleDeleteReview = (id) => {
+  const handleDeleteReview = async (id) => {
     if (window.confirm('Delete this customer testimonial?')) {
-      const updated = reviews.filter(r => r.id !== id);
-      onSaveReviews(updated);
+      if (onDeleteSingleReview) {
+        await onDeleteSingleReview(id);
+      } else {
+        const updated = reviews.filter(r => r.id !== id);
+        onSaveReviews(updated);
+      }
       setSaveSuccessMsg('Review deleted.');
       setTimeout(() => setSaveSuccessMsg(''), 3000);
     }

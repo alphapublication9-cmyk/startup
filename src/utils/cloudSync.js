@@ -6,9 +6,9 @@ import {
   saveStoredCategories, 
   getStoredSettings, 
   saveStoredSettings,
-  getStoredCoupons,
+  getStoredCoupons, 
   saveStoredCoupons,
-  getStoredReviews,
+  getStoredReviews, 
   saveStoredReviews,
   getStoredOrders,
   saveNewOrder as saveLocalOrder
@@ -17,10 +17,47 @@ import {
 /**
  * 1. PRODUCTS
  */
+const mapProductToRow = (p) => ({
+  id: String(p.id),
+  name: p.name,
+  category: p.category,
+  price: p.price,
+  original_price: p.originalPrice || null,
+  image: p.image,
+  images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
+  sizes: Array.isArray(p.sizes) ? p.sizes : ['S', 'M', 'L', 'XL'],
+  fabric: p.fabric || null,
+  color: p.color || null,
+  badge: p.badge || null,
+  offer: p.offer || null,
+  in_stock: p.inStock !== false,
+  rating: p.rating || 4.9,
+  reviews_count: p.reviewsCount || 42,
+  description: p.description || null
+});
+
+const mapRowToProduct = (item) => ({
+  id: item.id,
+  name: item.name,
+  category: item.category,
+  price: Number(item.price),
+  originalPrice: item.original_price ? Number(item.original_price) : undefined,
+  image: item.image,
+  images: Array.isArray(item.images) && item.images.length > 0 ? item.images : (item.image ? [item.image] : []),
+  sizes: Array.isArray(item.sizes) ? item.sizes : ['S', 'M', 'L', 'XL'],
+  fabric: item.fabric || '',
+  color: item.color || '',
+  badge: item.badge || '',
+  offer: item.offer || '',
+  inStock: item.in_stock !== false,
+  rating: Number(item.rating || 4.9),
+  reviewsCount: Number(item.reviews_count || 42),
+  description: item.description || ''
+});
+
 export const fetchCloudProducts = async () => {
   const supabase = getSupabase();
-  const localProducts = getStoredProducts();
-  if (!supabase) return localProducts;
+  if (!supabase) return getStoredProducts();
 
   try {
     const { data, error } = await supabase
@@ -30,129 +67,57 @@ export const fetchCloudProducts = async () => {
 
     if (error || !data) {
       console.warn("Supabase products fetch failed, falling back to local storage:", error?.message);
-      return localProducts;
+      return getStoredProducts();
     }
 
     if (data.length > 0) {
-      // Map columns from snake_case to camelCase
-      const cloudMapped = data.map(item => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        price: Number(item.price),
-        originalPrice: item.original_price ? Number(item.original_price) : undefined,
-        image: item.image,
-        images: Array.isArray(item.images) && item.images.length > 0 ? item.images : (item.image ? [item.image] : []),
-        sizes: Array.isArray(item.sizes) ? item.sizes : ['S', 'M', 'L', 'XL'],
-        fabric: item.fabric || '',
-        color: item.color || '',
-        badge: item.badge || '',
-        offer: item.offer || '',
-        inStock: item.in_stock !== false,
-        rating: Number(item.rating || 4.9),
-        reviewsCount: Number(item.reviews_count || 42),
-        description: item.description || ''
-      }));
-
-      // Smart merge: preserve user's local custom uploaded photos if cloud has stale/empty/placeholder photos
-      const localMap = new Map((localProducts || []).map(p => [String(p.id), p]));
-      let needsCloudUpdate = false;
-
-      const merged = cloudMapped.map(cp => {
-        const lp = localMap.get(String(cp.id));
-        if (!lp) return cp;
-
-        const hasLocalCustomImg = lp.image && (lp.image.startsWith('data:image/') || lp.images?.some(img => img && img.startsWith('data:image/')));
-        const cloudHasDataImg = cp.image && (cp.image.startsWith('data:image/') || cp.images?.some(img => img && img.startsWith('data:image/')));
-
-        if (hasLocalCustomImg && !cloudHasDataImg) {
-          needsCloudUpdate = true;
-          return {
-            ...cp,
-            image: lp.image,
-            images: lp.images && lp.images.length > 0 ? lp.images : [lp.image]
-          };
-        }
-        return cp;
-      });
-
-      // Keep local products that aren't in the cloud yet
-      const cloudIdSet = new Set(cloudMapped.map(cp => String(cp.id)));
-      (localProducts || []).forEach(lp => {
-        if (!cloudIdSet.has(String(lp.id))) {
-          merged.push(lp);
-          needsCloudUpdate = true;
-        }
-      });
-
-      // Save the merged result locally
-      saveStoredProducts(merged);
-
-      // If local had newer images/products missing in cloud, sync back in background
-      if (needsCloudUpdate) {
-        syncCloudProducts(merged);
-      }
-
-      return merged;
+      const mapped = data.map(mapRowToProduct);
+      saveStoredProducts(mapped);
+      return mapped;
     }
   } catch (err) {
     console.error("Cloud products load error:", err);
   }
 
-  return localProducts;
+  return getStoredProducts();
 };
 
-export const syncCloudProducts = async (products) => {
-  saveStoredProducts(products); // Always save locally and to IndexedDB first
+/**
+ * Saves or updates a SINGLE product directly to Supabase cloud immediately
+ */
+export const saveCloudProduct = async (product) => {
+  if (!product || !product.id) return;
+  const currentProds = getStoredProducts();
+  const exists = currentProds.some(p => p.id === product.id);
+  const updatedProds = exists 
+    ? currentProds.map(p => p.id === product.id ? product : p)
+    : [product, ...currentProds];
+
+  saveStoredProducts(updatedProds);
 
   const supabase = getSupabase();
-  if (!supabase || !Array.isArray(products)) return;
+  if (!supabase) return;
 
   try {
-    const rows = products.map(p => ({
-      id: String(p.id),
-      name: p.name,
-      category: p.category,
-      price: p.price,
-      original_price: p.originalPrice || null,
-      image: p.image,
-      images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
-      sizes: Array.isArray(p.sizes) ? p.sizes : ['S', 'M', 'L', 'XL'],
-      fabric: p.fabric || null,
-      color: p.color || null,
-      badge: p.badge || null,
-      offer: p.offer || null,
-      in_stock: p.inStock !== false,
-      rating: p.rating || 4.9,
-      reviews_count: p.reviewsCount || 42,
-      description: p.description || null
-    }));
-
-    // Chunk upsert into batches of 4 products to avoid payload/timeout limits
-    const CHUNK_SIZE = 4;
-    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-      const chunk = rows.slice(i, i + CHUNK_SIZE);
-      const { error } = await supabase
-        .from('products')
-        .upsert(chunk, { onConflict: 'id' });
-
-      if (error) {
-        console.warn(`Supabase upsert chunk ${i}-${i + chunk.length} issue, falling back to row-by-row:`, error.message);
-        for (const singleRow of chunk) {
-          try {
-            await supabase.from('products').upsert([singleRow], { onConflict: 'id' });
-          } catch (rowErr) {
-            console.error("Failed to upsert single product:", singleRow.id, rowErr);
-          }
-        }
-      }
+    const row = mapProductToRow(product);
+    const { error } = await supabase.from('products').upsert([row], { onConflict: 'id' });
+    if (error) {
+      console.error("Failed to save product to Supabase:", error.message);
     }
   } catch (err) {
-    console.error("Error syncing products to Supabase:", err);
+    console.error("Error saving product to Supabase:", err);
   }
 };
 
+/**
+ * Deletes a SINGLE product from Supabase cloud immediately
+ */
 export const deleteCloudProduct = async (productId) => {
+  if (!productId) return;
+  const currentProds = getStoredProducts();
+  const updated = currentProds.filter(p => String(p.id) !== String(productId));
+  saveStoredProducts(updated);
+
   const supabase = getSupabase();
   if (!supabase) return;
 
@@ -163,31 +128,66 @@ export const deleteCloudProduct = async (productId) => {
   }
 };
 
+export const syncCloudProducts = async (products) => {
+  if (!Array.isArray(products)) return;
+  saveStoredProducts(products);
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    const rows = products.map(mapProductToRow);
+    const CHUNK_SIZE = 4;
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabase
+        .from('products')
+        .upsert(chunk, { onConflict: 'id' });
+
+      if (error) {
+        for (const singleRow of chunk) {
+          try {
+            await supabase.from('products').upsert([singleRow], { onConflict: 'id' });
+          } catch (rowErr) {
+            console.error("Failed to upsert product row:", singleRow.id, rowErr);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error syncing products to Supabase:", err);
+  }
+};
+
 /**
  * 2. CATEGORIES
  */
+const mapCategoryToRow = (c) => ({
+  id: String(c.id || c.name),
+  name: c.name,
+  icon: c.icon || '👗',
+  image: c.image || null,
+  offer: c.offer || null,
+  description: c.description || null
+});
+
+const mapRowToCategory = (c) => ({
+  id: c.id,
+  name: c.name,
+  icon: c.icon || '👗',
+  image: c.image || '',
+  offer: c.offer || 'Up to 50% OFF',
+  description: c.description || ''
+});
+
 export const fetchCloudCategories = async () => {
   const supabase = getSupabase();
   if (!supabase) return getStoredCategories();
 
   try {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*');
-
-    if (error || !data) {
-      return getStoredCategories();
-    }
-
-    if (data.length > 0) {
-      const mapped = data.map(c => ({
-        id: c.id,
-        name: c.name,
-        icon: c.icon || '👗',
-        image: c.image || '',
-        offer: c.offer || 'Up to 50% OFF',
-        description: c.description || ''
-      }));
+    const { data, error } = await supabase.from('categories').select('*');
+    if (!error && data && data.length > 0) {
+      const mapped = data.map(mapRowToCategory);
       saveStoredCategories(mapped);
       return mapped;
     }
@@ -198,22 +198,59 @@ export const fetchCloudCategories = async () => {
   return getStoredCategories();
 };
 
+export const saveCloudCategory = async (category) => {
+  if (!category) return;
+  const currentCats = getStoredCategories();
+  const cName = typeof category === 'string' ? category : category.name;
+  const exists = currentCats.some(c => (c.id && c.id === category.id) || (typeof c === 'string' ? c === cName : c.name === cName));
+  const updatedCats = exists
+    ? currentCats.map(c => ((c.id && c.id === category.id) || (typeof c === 'string' ? c === cName : c.name === cName)) ? category : c)
+    : [...currentCats, category];
+
+  saveStoredCategories(updatedCats);
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('categories').upsert([mapCategoryToRow(category)], { onConflict: 'id' });
+  } catch (err) {
+    console.error("Error saving category to cloud:", err);
+  }
+};
+
+export const deleteCloudCategory = async (categoryId, categoryName) => {
+  const currentCats = getStoredCategories();
+  const updated = currentCats.filter(c => {
+    const name = typeof c === 'string' ? c : c.name;
+    return c.id !== categoryId && name !== categoryName;
+  });
+  saveStoredCategories(updated);
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    if (categoryId) {
+      await supabase.from('categories').delete().eq('id', String(categoryId));
+    }
+    if (categoryName) {
+      await supabase.from('categories').delete().eq('name', categoryName);
+    }
+  } catch (err) {
+    console.error("Error deleting category from cloud:", err);
+  }
+};
+
 export const syncCloudCategories = async (categories) => {
+  if (!Array.isArray(categories)) return;
   saveStoredCategories(categories);
 
   const supabase = getSupabase();
-  if (!supabase || !Array.isArray(categories)) return;
+  if (!supabase) return;
 
   try {
-    const rows = categories.map(c => ({
-      id: String(c.id || c.name),
-      name: c.name,
-      icon: c.icon || '👗',
-      image: c.image || null,
-      offer: c.offer || null,
-      description: c.description || null
-    }));
-
+    const rows = categories.map(mapCategoryToRow);
     await supabase.from('categories').upsert(rows, { onConflict: 'id' });
   } catch (err) {
     console.error("Error syncing categories to Supabase:", err);
@@ -234,11 +271,7 @@ export const fetchCloudSettings = async () => {
       .eq('id', 'store_config')
       .single();
 
-    if (error || !data) {
-      return getStoredSettings();
-    }
-
-    if (data && data.data) {
+    if (!error && data && data.data) {
       saveStoredSettings(data.data);
       return data.data;
     }
@@ -269,6 +302,26 @@ export const syncCloudSettings = async (settings) => {
 /**
  * 4. COUPONS
  */
+const mapCouponToRow = (c) => ({
+  id: String(c.id || c.code),
+  code: c.code,
+  discount_type: c.discountType || c.discount_type,
+  discount_value: Number(c.discountValue || c.discount_value || 0),
+  min_order_amount: Number(c.minOrderAmount || c.min_order_amount || 0),
+  description: c.description || null,
+  is_active: c.isActive !== false && c.is_active !== false
+});
+
+const mapRowToCoupon = (c) => ({
+  id: c.id,
+  code: c.code,
+  discountType: c.discount_type,
+  discountValue: Number(c.discount_value),
+  minOrderAmount: Number(c.min_order_amount || 0),
+  description: c.description || '',
+  isActive: c.is_active !== false
+});
+
 export const fetchCloudCoupons = async () => {
   const supabase = getSupabase();
   if (!supabase) return getStoredCoupons();
@@ -276,15 +329,7 @@ export const fetchCloudCoupons = async () => {
   try {
     const { data, error } = await supabase.from('coupons').select('*');
     if (!error && data && data.length > 0) {
-      const mapped = data.map(c => ({
-        id: c.id,
-        code: c.code,
-        discountType: c.discount_type,
-        discountValue: Number(c.discount_value),
-        minOrderAmount: Number(c.min_order_amount || 0),
-        description: c.description || '',
-        isActive: c.is_active !== false
-      }));
+      const mapped = data.map(mapRowToCoupon);
       saveStoredCoupons(mapped);
       return mapped;
     }
@@ -294,21 +339,45 @@ export const fetchCloudCoupons = async () => {
   return getStoredCoupons();
 };
 
-export const syncCloudCoupons = async (coupons) => {
-  saveStoredCoupons(coupons);
+export const saveCloudCoupon = async (coupon) => {
+  if (!coupon || !coupon.code) return;
+  const current = getStoredCoupons();
+  const updated = [coupon, ...current.filter(c => c.code !== coupon.code)];
+  saveStoredCoupons(updated);
+
   const supabase = getSupabase();
-  if (!supabase || !Array.isArray(coupons)) return;
+  if (!supabase) return;
 
   try {
-    const rows = coupons.map(c => ({
-      id: String(c.id || c.code),
-      code: c.code,
-      discount_type: c.discountType,
-      discount_value: c.discountValue,
-      min_order_amount: c.minOrderAmount || 0,
-      description: c.description || null,
-      is_active: c.isActive !== false
-    }));
+    await supabase.from('coupons').upsert([mapCouponToRow(coupon)], { onConflict: 'id' });
+  } catch (err) {
+    console.error("Error saving coupon to cloud:", err);
+  }
+};
+
+export const deleteCloudCoupon = async (code) => {
+  const current = getStoredCoupons();
+  const updated = current.filter(c => c.code !== code);
+  saveStoredCoupons(updated);
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('coupons').delete().eq('code', code);
+  } catch (err) {
+    console.error("Error deleting coupon from cloud:", err);
+  }
+};
+
+export const syncCloudCoupons = async (coupons) => {
+  if (!Array.isArray(coupons)) return;
+  saveStoredCoupons(coupons);
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    const rows = coupons.map(mapCouponToRow);
     await supabase.from('coupons').upsert(rows, { onConflict: 'id' });
   } catch (err) {
     console.error("Error syncing coupons:", err);
@@ -318,6 +387,28 @@ export const syncCloudCoupons = async (coupons) => {
 /**
  * 5. REVIEWS
  */
+const mapReviewToRow = (r) => ({
+  id: String(r.id),
+  name: r.name,
+  city: r.city || '',
+  rating: Number(r.rating || 5),
+  date: r.date || 'Recent',
+  product_name: r.productName || r.product_name || '',
+  comment: r.comment || '',
+  verified_buyer: r.verifiedBuyer !== false && r.verified_buyer !== false
+});
+
+const mapRowToReview = (r) => ({
+  id: r.id,
+  name: r.name,
+  city: r.city,
+  rating: Number(r.rating || 5),
+  date: r.date || 'Recent',
+  productName: r.product_name,
+  comment: r.comment,
+  verifiedBuyer: r.verified_buyer !== false
+});
+
 export const fetchCloudReviews = async () => {
   const supabase = getSupabase();
   if (!supabase) return getStoredReviews();
@@ -325,16 +416,7 @@ export const fetchCloudReviews = async () => {
   try {
     const { data, error } = await supabase.from('reviews').select('*');
     if (!error && data && data.length > 0) {
-      const mapped = data.map(r => ({
-        id: r.id,
-        name: r.name,
-        city: r.city,
-        rating: Number(r.rating || 5),
-        date: r.date || 'Recent',
-        productName: r.product_name,
-        comment: r.comment,
-        verifiedBuyer: r.verified_buyer !== false
-      }));
+      const mapped = data.map(mapRowToReview);
       saveStoredReviews(mapped);
       return mapped;
     }
@@ -344,22 +426,45 @@ export const fetchCloudReviews = async () => {
   return getStoredReviews();
 };
 
-export const syncCloudReviews = async (reviews) => {
-  saveStoredReviews(reviews);
+export const saveCloudReview = async (review) => {
+  if (!review || !review.id) return;
+  const current = getStoredReviews();
+  const updated = [review, ...current.filter(r => r.id !== review.id)];
+  saveStoredReviews(updated);
+
   const supabase = getSupabase();
-  if (!supabase || !Array.isArray(reviews)) return;
+  if (!supabase) return;
 
   try {
-    const rows = reviews.map(r => ({
-      id: String(r.id),
-      name: r.name,
-      city: r.city || '',
-      rating: r.rating || 5,
-      date: r.date || 'Recent',
-      product_name: r.productName || '',
-      comment: r.comment || '',
-      verified_buyer: r.verifiedBuyer !== false
-    }));
+    await supabase.from('reviews').upsert([mapReviewToRow(review)], { onConflict: 'id' });
+  } catch (err) {
+    console.error("Error saving review to cloud:", err);
+  }
+};
+
+export const deleteCloudReview = async (id) => {
+  const current = getStoredReviews();
+  const updated = current.filter(r => r.id !== id);
+  saveStoredReviews(updated);
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('reviews').delete().eq('id', String(id));
+  } catch (err) {
+    console.error("Error deleting review from cloud:", err);
+  }
+};
+
+export const syncCloudReviews = async (reviews) => {
+  if (!Array.isArray(reviews)) return;
+  saveStoredReviews(reviews);
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    const rows = reviews.map(mapReviewToRow);
     await supabase.from('reviews').upsert(rows, { onConflict: 'id' });
   } catch (err) {
     console.error("Error syncing reviews:", err);
@@ -412,6 +517,64 @@ export const recordCloudOrder = async (order) => {
     });
   } catch (err) {
     console.error("Error saving cloud order:", err);
+  }
+};
+
+/**
+ * 7. REALTIME LIVE SYNC
+ * Automatically updates connected devices whenever changes happen in Supabase
+ */
+export const subscribeToCloudChanges = (callbacks = {}) => {
+  const supabase = getSupabase();
+  if (!supabase) return () => {};
+
+  try {
+    const channel = supabase
+      .channel('public:db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async () => {
+        if (callbacks.onProductsChange) {
+          const fresh = await fetchCloudProducts();
+          callbacks.onProductsChange(fresh);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, async () => {
+        if (callbacks.onCategoriesChange) {
+          const fresh = await fetchCloudCategories();
+          callbacks.onCategoriesChange(fresh);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async () => {
+        if (callbacks.onSettingsChange) {
+          const fresh = await fetchCloudSettings();
+          callbacks.onSettingsChange(fresh);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, async () => {
+        if (callbacks.onCouponsChange) {
+          const fresh = await fetchCloudCoupons();
+          callbacks.onCouponsChange(fresh);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, async () => {
+        if (callbacks.onReviewsChange) {
+          const fresh = await fetchCloudReviews();
+          callbacks.onReviewsChange(fresh);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+        if (callbacks.onOrdersChange) {
+          const fresh = await fetchCloudOrders();
+          callbacks.onOrdersChange(fresh);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch (err) {
+    console.warn("Realtime subscription notice:", err);
+    return () => {};
   }
 };
 
