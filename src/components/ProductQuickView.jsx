@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -14,7 +14,12 @@ import {
   Plus, 
   Minus, 
   Tag, 
-  Send 
+  Send,
+  ZoomIn,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
@@ -24,14 +29,32 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
 
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] || 'M');
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(product.image);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
+  
+  // Lightbox Zoom State
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const isTelegram = settings.orderChannel === 'telegram';
   const channelLabel = isTelegram ? 'Telegram' : 'WhatsApp';
 
-  const images = product.images && product.images.length > 0 ? product.images : [product.image];
+  const rawImages = product.images && product.images.length > 0 ? product.images : [product.image];
+  const images = rawImages.filter(Boolean);
+  const activeImage = images[selectedImageIndex] || product.image;
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isLightboxOpen) return;
+      if (e.key === 'Escape') setIsLightboxOpen(false);
+      if (e.key === 'ArrowRight') setSelectedImageIndex((prev) => (prev + 1) % images.length);
+      if (e.key === 'ArrowLeft') setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen, images.length]);
 
   const discountPercent = product.originalPrice 
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
@@ -50,80 +73,118 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
     window.open(url, '_blank');
   };
 
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-stone-950/70 backdrop-blur-sm overflow-y-auto"
-      onClick={onClose}
-    >
-      <motion.div 
-        initial={{ scale: 0.92, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.92, opacity: 0, y: 20 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-4xl bg-[#fdfcf9] rounded-3xl shadow-2xl border border-gold-300/60 overflow-hidden my-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          aria-label="Close details"
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-900/90 hover:bg-[#700b1d] text-white shadow-xl flex items-center justify-center transition-all cursor-pointer border border-white/20"
-        >
-          <X size={18} />
-        </button>
+  const handleOpenLightbox = (index = selectedImageIndex) => {
+    setSelectedImageIndex(index);
+    setZoomLevel(1);
+    setIsLightboxOpen(true);
+  };
 
-        <div className="grid grid-cols-1 md:grid-cols-2 max-h-[92vh] overflow-y-auto">
-          
-          {/* Left Column: Image Gallery */}
-          <div className="p-3 sm:p-5 md:p-6 bg-[#faf5ed] flex flex-col justify-between">
-            {/* Main Active Image */}
-            <div className="relative aspect-[3/4] max-h-72 sm:max-h-96 md:max-h-none w-full rounded-2xl overflow-hidden border border-gold-300/50 shadow-md mx-auto">
-              <motion.img
-                key={selectedImage || product.image}
-                initial={{ opacity: 0.7 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                src={normalizeImageUrl(selectedImage || product.image)}
-                alt={product.name}
-                className="w-full h-full object-cover object-top"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                }}
-              />
-              {product.badge && (
-                <span className="absolute top-2.5 left-2.5 royal-maroon-bg text-gold-100 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-gold-400/40">
-                  {product.badge}
-                </span>
-              )}
-              {product.offer && (
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-[#700b1d] via-[#4a040e] to-[#260107] text-gold-200 px-2.5 py-1 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-md border-t border-gold-500/30">
-                  <Sparkles size={13} className="text-gold-300 animate-spin" style={{ animationDuration: '4s' }} />
-                  <span>{product.offer}</span>
+  return (
+    <>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-stone-950/75 backdrop-blur-sm overflow-y-auto"
+        onClick={onClose}
+      >
+        <motion.div 
+          initial={{ scale: 0.92, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.92, opacity: 0, y: 20 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="relative w-full max-w-4xl bg-[#fdfcf9] rounded-3xl shadow-2xl border border-gold-300/60 overflow-hidden my-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            aria-label="Close details"
+            className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-900/90 hover:bg-[#700b1d] text-white shadow-xl flex items-center justify-center transition-all cursor-pointer border border-white/20"
+          >
+            <X size={18} />
+          </button>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 max-h-[92vh] overflow-y-auto">
+            
+            {/* Left Column: Image Gallery with Zoom / Enlarge */}
+            <div className="p-3 sm:p-5 md:p-6 bg-[#faf5ed] flex flex-col justify-between">
+              
+              {/* Main Active Image with Click to Enlarge */}
+              <div 
+                onClick={() => handleOpenLightbox(selectedImageIndex)}
+                className="relative aspect-[3/4] max-h-72 sm:max-h-96 md:max-h-none w-full rounded-2xl overflow-hidden border border-gold-300/50 shadow-md mx-auto group cursor-zoom-in"
+                title="Click to Enlarge / Full Screen Photo"
+              >
+                <motion.img
+                  key={activeImage}
+                  initial={{ opacity: 0.7 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  src={normalizeImageUrl(activeImage)}
+                  alt={product.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                  }}
+                />
+
+                {/* Enlarge / Fullscreen Floating Trigger Pill */}
+                <div className="absolute top-3 right-3 bg-stone-950/80 hover:bg-[#700b1d] text-white text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md border border-white/20 transition-all opacity-90 group-hover:opacity-100 group-hover:scale-105">
+                  <ZoomIn size={13} className="text-gold-300" />
+                  <span>Enlarge Photo</span>
+                </div>
+
+                {/* Photo Counter Badge */}
+                {images.length > 1 && (
+                  <div className="absolute bottom-3 right-3 bg-stone-900/80 text-gold-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md backdrop-blur-sm border border-gold-500/30">
+                    {selectedImageIndex + 1} / {images.length}
+                  </div>
+                )}
+
+                {product.badge && (
+                  <span className="absolute top-2.5 left-2.5 royal-maroon-bg text-gold-100 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-gold-400/40">
+                    {product.badge}
+                  </span>
+                )}
+                {product.offer && (
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-[#700b1d] via-[#4a040e] to-[#260107] text-gold-200 px-2.5 py-1 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-md border-t border-gold-500/30">
+                    <Sparkles size={13} className="text-gold-300 animate-spin" style={{ animationDuration: '4s' }} />
+                    <span>{product.offer}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Thumbnails (Multi-Image 3-4 Photos) */}
+              {images.length > 1 && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-stone-600 mb-1.5 px-1">
+                    <span>Product Views ({images.length} Photos):</span>
+                    <span className="text-[10px] text-amber-800 font-normal">Click thumbnail to switch</span>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {images.map((img, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(idx)}
+                        className={`w-14 sm:w-16 h-18 sm:h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer relative group ${
+                          selectedImageIndex === idx 
+                            ? 'border-[#700b1d] scale-105 shadow-md ring-2 ring-gold-400/40' 
+                            : 'border-stone-200 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={normalizeImageUrl(img)} alt="" className="w-full h-full object-cover object-top" />
+                        <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[9px] font-bold px-1 rounded">
+                          #{idx + 1}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Thumbnails */}
-            {images.length > 1 && (
-              <div className="flex items-center gap-2 mt-2.5 overflow-x-auto pb-1">
-                {images.map((img, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSelectedImage(img)}
-                    className={`w-12 sm:w-16 h-16 sm:h-20 rounded-lg overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
-                      selectedImage === img ? 'border-[#700b1d] scale-105 shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={normalizeImageUrl(img)} alt="" className="w-full h-full object-cover object-top" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Right Column: Details & Ordering */}
           <div className="p-4 sm:p-6 md:p-8 flex flex-col justify-between space-y-4">
@@ -314,5 +375,153 @@ export const ProductQuickView = ({ product, onClose, onAddToCart, settings = {} 
         </div>
       </motion.div>
     </motion.div>
+
+    {/* ========================================================= */}
+    {/* FULLSCREEN HD IMAGE LIGHTBOX & ZOOM VIEWER MODAL          */}
+    {/* ========================================================= */}
+    <AnimatePresence>
+      {isLightboxOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 select-none"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          {/* Top Control Bar */}
+          <div 
+            className="flex items-center justify-between z-20 text-white pb-3 border-b border-white/15"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Title & Index */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="font-serif font-bold text-sm sm:text-base text-gold-300 truncate max-w-[200px] sm:max-w-md">
+                {product.name}
+              </span>
+              <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full text-stone-300 font-mono">
+                Photo {selectedImageIndex + 1} of {images.length}
+              </span>
+            </div>
+
+            {/* Zoom Controls & Close */}
+            <div className="flex items-center gap-2">
+              {/* Zoom Out */}
+              <button
+                type="button"
+                onClick={() => setZoomLevel(prev => Math.max(0.75, prev - 0.25))}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer"
+                title="Zoom Out"
+              >
+                <Minus size={17} />
+              </button>
+
+              {/* Reset Zoom */}
+              <button
+                type="button"
+                onClick={() => setZoomLevel(1)}
+                className="px-2.5 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer"
+                title="Reset Zoom"
+              >
+                <span>{Math.round(zoomLevel * 100)}%</span>
+              </button>
+
+              {/* Zoom In */}
+              <button
+                type="button"
+                onClick={() => setZoomLevel(prev => Math.min(3, prev + 0.25))}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer"
+                title="Zoom In"
+              >
+                <Plus size={17} />
+              </button>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsLightboxOpen(false)}
+                className="w-9 h-9 rounded-full bg-rose-600/80 hover:bg-rose-600 text-white flex items-center justify-center transition-all cursor-pointer ml-2 shadow-lg"
+                title="Close Lightbox (Esc)"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Center Image with Navigation Arrows */}
+          <div 
+            className="relative flex-1 flex items-center justify-center overflow-hidden my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Previous Arrow */}
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length)}
+                className="absolute left-2 sm:left-4 z-20 w-11 h-11 rounded-full bg-black/60 hover:bg-[#700b1d] text-white border border-white/20 shadow-xl flex items-center justify-center transition-all cursor-pointer"
+                title="Previous Image (←)"
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            {/* Main Active Zoomable Image */}
+            <motion.div 
+              className="max-h-[78vh] max-w-[92vw] overflow-auto flex items-center justify-center p-2 cursor-grab active:cursor-grabbing"
+              animate={{ scale: zoomLevel }}
+              transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+            >
+              <img
+                src={normalizeImageUrl(activeImage)}
+                alt={product.name}
+                className="max-h-[74vh] max-w-full object-contain rounded-xl shadow-2xl border border-white/10"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                }}
+              />
+            </motion.div>
+
+            {/* Next Arrow */}
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setSelectedImageIndex((prev) => (prev + 1) % images.length)}
+                className="absolute right-2 sm:right-4 z-20 w-11 h-11 rounded-full bg-black/60 hover:bg-[#700b1d] text-white border border-white/20 shadow-xl flex items-center justify-center transition-all cursor-pointer"
+                title="Next Image (→)"
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Thumbnail Selector */}
+          {images.length > 1 && (
+            <div 
+              className="z-20 pt-3 border-t border-white/15 flex items-center justify-center gap-2 overflow-x-auto pb-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {images.map((img, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setSelectedImageIndex(idx);
+                    setZoomLevel(1);
+                  }}
+                  className={`w-14 h-18 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                    selectedImageIndex === idx 
+                      ? 'border-amber-400 scale-110 shadow-lg ring-2 ring-amber-400/50' 
+                      : 'border-white/20 opacity-50 hover:opacity-100'
+                  }`}
+                >
+                  <img src={normalizeImageUrl(img)} alt="" className="w-full h-full object-cover object-top" />
+                </button>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </>
   );
 };

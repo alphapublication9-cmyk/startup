@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Lock, 
   User, 
@@ -179,7 +179,7 @@ export const AdminPage = ({
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
 
-  // Product Form State
+  // Product Form State (Supports 3-4+ Multi-Images)
   const [formData, setFormData] = useState({
     id: '',
     name: '',
@@ -187,6 +187,9 @@ export const AdminPage = ({
     price: 999,
     originalPrice: 1999,
     image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80'
+    ],
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
     fabric: 'Pure Silk / Cotton',
     color: 'Multicolor',
@@ -198,10 +201,17 @@ export const AdminPage = ({
     description: 'Handcrafted premium ethnic fashion ensemble with fine detailing.'
   });
 
-  // Store Settings State
+  // Store Settings State with Live Props Sync
   const [storeSettings, setStoreSettings] = useState({ ...settings });
   const [importJsonInput, setImportJsonInput] = useState('');
   const [importStatusMsg, setImportStatusMsg] = useState('');
+
+  // Keep storeSettings synchronized whenever settings prop updates from Supabase/Local storage
+  useEffect(() => {
+    if (settings && Object.keys(settings).length > 0) {
+      setStoreSettings(prev => ({ ...prev, ...settings }));
+    }
+  }, [settings]);
 
   // Cloud Database (Supabase) State
   const [supabaseConfig, setSupabaseConfig] = useState(getSupabaseConfig);
@@ -359,25 +369,34 @@ export const AdminPage = ({
     }
   };
 
-  // Open Add/Edit Product Modal
+  // Open Add/Edit Product Modal (Supports 3-4+ Images)
   const handleOpenEditProduct = (product = null) => {
     if (product) {
       setEditingProduct(product);
+      const rawImgs = Array.isArray(product.images) && product.images.length > 0 
+        ? product.images 
+        : [product.image].filter(Boolean);
+      const initialImages = rawImgs.length > 0 ? rawImgs : ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80'];
+
       setFormData({
         ...product,
+        image: initialImages[0] || product.image || '',
+        images: initialImages,
         sizes: product.sizes || ['S', 'M', 'L', 'XL'],
         offer: product.offer || ''
       });
     } else {
       setEditingProduct(null);
       const defaultCat = categories[0] ? (typeof categories[0] === 'string' ? categories[0] : categories[0].name) : 'Kurtis & Suits';
+      const defaultImg = 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80';
       setFormData({
         id: `item-${Date.now()}`,
         name: '',
         category: defaultCat,
         price: 999,
         originalPrice: 1999,
-        image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
+        image: defaultImg,
+        images: [defaultImg],
         sizes: ['S', 'M', 'L', 'XL', 'XXL'],
         fabric: 'Pure Silk / Cotton',
         color: 'Multicolor',
@@ -392,13 +411,53 @@ export const AdminPage = ({
     setIsEditModalOpen(true);
   };
 
-  // Handle Photo File Upload for Product
-  const handleProductFileUpload = (e) => {
+  // Multi-Image Gallery Handlers for Product
+  const handleAddProductImageSlot = () => {
+    const currentImgs = formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''];
+    if (currentImgs.length >= 6) {
+      alert('Maximum 6 photos per product allowed.');
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      images: [...currentImgs, '']
+    }));
+  };
+
+  const handleUpdateProductImage = (index, url) => {
+    const cleanUrl = normalizeImageUrl(url);
+    const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
+    currentImgs[index] = cleanUrl;
+    setFormData(prev => ({
+      ...prev,
+      image: index === 0 ? cleanUrl : (prev.image || currentImgs[0]),
+      images: currentImgs
+    }));
+  };
+
+  const handleRemoveProductImage = (index) => {
+    const currentImgs = (formData.images || [formData.image]).filter((_, i) => i !== index);
+    const nextImages = currentImgs.length > 0 ? currentImgs : [''];
+    setFormData(prev => ({
+      ...prev,
+      image: nextImages[0] || '',
+      images: nextImages
+    }));
+  };
+
+  const handleUploadProductImage = (index, e) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image: reader.result }));
+        const resultUrl = reader.result;
+        const currentImgs = [...(formData.images && formData.images.length > 0 ? formData.images : [formData.image || ''])];
+        currentImgs[index] = resultUrl;
+        setFormData(prev => ({
+          ...prev,
+          image: index === 0 ? resultUrl : (prev.image || currentImgs[0]),
+          images: currentImgs
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -426,23 +485,35 @@ export const AdminPage = ({
     }
   };
 
-  // Save Product (Add or Edit)
+  // Save Product (Add or Edit with Multi-Image Support)
   const handleSaveProduct = (e) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    const cleanImages = (formData.images || [formData.image])
+      .map(img => typeof img === 'string' ? normalizeImageUrl(img.trim()) : '')
+      .filter(Boolean);
+    const primaryImg = cleanImages[0] || normalizeImageUrl(formData.image) || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80';
+    const finalImages = cleanImages.length > 0 ? cleanImages : [primaryImg];
+
+    const finalProduct = {
+      ...formData,
+      image: primaryImg,
+      images: finalImages
+    };
+
     let updatedProducts;
     if (editingProduct) {
-      updatedProducts = products.map(p => p.id === editingProduct.id ? { ...formData } : p);
-      setSaveSuccessMsg('Item updated successfully!');
+      updatedProducts = products.map(p => p.id === editingProduct.id ? finalProduct : p);
+      setSaveSuccessMsg(`Item "${finalProduct.name}" updated with ${finalImages.length} photos!`);
     } else {
-      updatedProducts = [{ ...formData, id: `item-${Date.now()}` }, ...products];
-      setSaveSuccessMsg('New Women Fashion item added successfully!');
+      updatedProducts = [{ ...finalProduct, id: `item-${Date.now()}` }, ...products];
+      setSaveSuccessMsg(`New item "${finalProduct.name}" added with ${finalImages.length} photos!`);
     }
 
     onSaveProducts(updatedProducts);
     setIsEditModalOpen(false);
-    setTimeout(() => setSaveSuccessMsg(''), 3000);
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
   };
 
   // Delete Product
@@ -588,11 +659,16 @@ export const AdminPage = ({
   };
 
   // Save Settings
-  const handleSaveSettings = (e) => {
-    e.preventDefault();
+  const handleSaveSettings = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     onSaveSettings(storeSettings);
-    setSaveSuccessMsg('Store, Company & WhatsApp settings updated successfully!');
-    setTimeout(() => setSaveSuccessMsg(''), 3000);
+    try {
+      await syncCloudSettings(storeSettings);
+    } catch (err) {
+      console.error("Cloud sync settings error:", err);
+    }
+    setSaveSuccessMsg('✅ Store settings, WhatsApp & Telegram channels updated & synced live to Cloud!');
+    setTimeout(() => setSaveSuccessMsg(''), 4000);
   };
 
   // Reset Demo Catalog
@@ -2352,76 +2428,140 @@ export const AdminPage = ({
                 />
               </div>
 
-              {/* Photo Upload with Google Drive & Cloud Link Auto-Conversion */}
-              <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5 text-xs">
-                    <ImageIcon size={14} className="text-[#700b1d]" />
-                    <span>Item Photo (Google Drive Link, Image URL, or Upload)</span>
-                  </label>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                    ⚡ Google Drive Supported
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                  <div className="sm:col-span-3">
-                    <div className="aspect-[3/4] w-24 mx-auto rounded-xl overflow-hidden border-2 border-gold-400 shadow-sm bg-stone-100 relative group">
-                      {formData.image ? (
-                        <img 
-                          src={normalizeImageUrl(formData.image)} 
-                          alt="Preview" 
-                          className="w-full h-full object-cover object-top"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 text-[10px] p-2 text-center">
-                          <ImageIcon size={18} className="mb-1 text-stone-300" />
-                          <span>No Photo</span>
-                        </div>
-                      )}
-                    </div>
+              {/* Multi-Image Gallery Studio (3-4+ Photos with Google Drive Link & File Upload) */}
+              <div className="p-4 sm:p-5 bg-gradient-to-br from-amber-50/80 via-stone-50 to-amber-50/40 rounded-3xl border border-amber-300/80 space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-amber-200">
+                  <div>
+                    <label className="block font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5 text-xs sm:text-sm">
+                      <ImageIcon size={16} className="text-[#700b1d]" />
+                      <span>Product Photo Gallery ({(formData.images || [formData.image]).length} Photos)</span>
+                    </label>
+                    <p className="text-[11px] text-stone-600">
+                      Add 3 to 4 photos per product (Front view, Side angle, Fabric zoom, Dupatta/Back view).
+                    </p>
                   </div>
 
-                  <div className="sm:col-span-9 space-y-2">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-semibold text-stone-700">Option 1: Image URL or Google Drive Link</span>
-                        {isGoogleDriveUrl(formData.image) && (
-                          <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
-                            <Check size={11} /> Google Drive link converted
+                  <button
+                    type="button"
+                    onClick={handleAddProductImageSlot}
+                    className="self-start sm:self-auto px-3 py-1.5 royal-maroon-bg text-gold-100 rounded-xl text-xs font-bold hover:opacity-95 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>+ Add Another Photo</span>
+                  </button>
+                </div>
+
+                {/* List of Photo Slots */}
+                <div className="space-y-3">
+                  {(formData.images && formData.images.length > 0 ? formData.images : [formData.image || '']).map((imgUrl, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-3 bg-white rounded-2xl border border-stone-200 shadow-xs space-y-2 relative"
+                    >
+                      {/* Slot Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                            idx === 0 
+                              ? 'royal-maroon-bg text-gold-100 border border-gold-400/40' 
+                              : 'bg-stone-100 text-stone-700'
+                          }`}>
+                            {idx === 0 ? '★ Photo 1 (Main / Cover View)' : `Photo ${idx + 1} (Additional View)`}
                           </span>
+                          {isGoogleDriveUrl(imgUrl) && (
+                            <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-300 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Check size={10} /> Google Drive Converted
+                            </span>
+                          )}
+                        </div>
+
+                        {idx > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProductImage(idx)}
+                            className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                            title="Remove this photo slot"
+                          >
+                            <Trash2 size={13} />
+                            <span className="text-[10px]">Remove</span>
+                          </button>
                         )}
                       </div>
-                      <input
-                        type="text"
-                        placeholder="Paste image URL or Google Drive link (https://drive.google.com/...)"
-                        value={formData.image}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFormData({ ...formData, image: normalizeImageUrl(val) });
-                        }}
-                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-xs focus:outline-none focus:border-[#700b1d] shadow-xs"
-                      />
-                      <p className="text-[10px] text-stone-500 mt-1">
-                        💡 <em>Tip: Google Drive link ko public ("Anyone with the link can view") rakhein.</em>
-                      </p>
-                    </div>
 
-                    <div>
-                      <span className="text-[11px] font-semibold text-stone-700 block mb-1">Option 2: Upload from Device</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleProductFileUpload}
-                        className="w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-stone-900 file:text-gold-200 hover:file:bg-black cursor-pointer"
-                      />
+                      {/* Input Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                        {/* Thumbnail */}
+                        <div className="sm:col-span-3">
+                          <div className="aspect-[3/4] w-20 sm:w-24 mx-auto rounded-xl overflow-hidden border-2 border-gold-400 shadow-sm bg-stone-100 relative group">
+                            {imgUrl ? (
+                              <img 
+                                src={normalizeImageUrl(imgUrl)} 
+                                alt={`View ${idx + 1}`} 
+                                className="w-full h-full object-cover object-top"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80";
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 text-[9px] p-2 text-center">
+                                <ImageIcon size={16} className="mb-1 text-stone-300" />
+                                <span>Add Photo</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* URL & Upload Inputs */}
+                        <div className="sm:col-span-9 space-y-2">
+                          <div>
+                            <span className="text-[11px] font-semibold text-stone-700 block mb-1">
+                              Option A: Paste Google Drive link or Image URL
+                            </span>
+                            <input
+                              type="text"
+                              placeholder="https://drive.google.com/file/d/... or https://..."
+                              value={imgUrl}
+                              onChange={(e) => handleUpdateProductImage(idx, e.target.value)}
+                              className="w-full px-3 py-1.5 bg-stone-50 border border-stone-300 rounded-lg text-xs focus:outline-none focus:border-[#700b1d] focus:bg-white shadow-xs font-mono"
+                            />
+                          </div>
+
+                          <div>
+                            <span className="text-[11px] font-semibold text-stone-700 block mb-1">
+                              Option B: Upload from Device
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleUploadProductImage(idx, e)}
+                              className="w-full text-xs text-stone-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-stone-900 file:text-gold-200 hover:file:bg-black cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick Thumbnail Strip Summary */}
+                {(formData.images && formData.images.filter(Boolean).length > 1) && (
+                  <div className="pt-2 border-t border-amber-200">
+                    <span className="text-[10px] font-bold text-stone-600 block mb-1">
+                      Live Customer Preview Strip ({formData.images.filter(Boolean).length} Photos):
+                    </span>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {formData.images.filter(Boolean).map((img, i) => (
+                        <div key={i} className="w-12 h-16 rounded-lg overflow-hidden border border-amber-400 shadow-xs relative shrink-0">
+                          <img src={normalizeImageUrl(img)} alt="" className="w-full h-full object-cover object-top" />
+                          <span className="absolute bottom-0 inset-x-0 bg-black/75 text-white text-[8px] font-bold text-center">
+                            #{i + 1}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Category, Selling Price, Original MRP */}

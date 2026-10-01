@@ -230,26 +230,31 @@ export function App() {
   // Admin Handlers (Saves both locally and to Supabase Cloud)
   const handleSaveProducts = (newProducts) => {
     setProducts(newProducts);
+    saveStoredProducts(newProducts);
     syncCloudProducts(newProducts);
   };
 
   const handleSaveCategories = (newCategories) => {
     setCategories(newCategories);
+    saveStoredCategories(newCategories);
     syncCloudCategories(newCategories);
   };
 
   const handleSaveCoupons = (newCoupons) => {
     setCoupons(newCoupons);
+    saveStoredCoupons(newCoupons);
     syncCloudCoupons(newCoupons);
   };
 
   const handleSaveReviews = (newReviews) => {
     setReviews(newReviews);
+    saveStoredReviews(newReviews);
     syncCloudReviews(newReviews);
   };
 
   const handleSaveSettings = (newSettings) => {
     setSettings(newSettings);
+    saveStoredSettings(newSettings);
     syncCloudSettings(newSettings);
   };
 
