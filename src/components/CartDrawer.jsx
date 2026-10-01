@@ -154,7 +154,16 @@ export const CartDrawer = ({
     }
   }
 
-  const totalDiscount = couponDiscount + timerDiscount;
+  // 3. Smart Multi-Item Bundle Savings (Buy 2 Save ₹200, Buy 3+ Save ₹400)
+  const totalItemCount = cartItems.reduce((acc, c) => acc + c.quantity, 0);
+  let bundleDiscount = 0;
+  if (totalItemCount === 2) {
+    bundleDiscount = 200;
+  } else if (totalItemCount >= 3) {
+    bundleDiscount = 400;
+  }
+
+  const totalDiscount = couponDiscount + timerDiscount + bundleDiscount;
   const giftWrapFee = isGiftWrap ? 49 : 0;
   const shippingFee = 0; // Confirmed on WhatsApp
   const grandTotal = Math.max(0, subtotal - totalDiscount + giftWrapFee);
@@ -391,6 +400,55 @@ export const CartDrawer = ({
                         />
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* 🛍️ SMART MULTI-KURTI BUNDLE & SAVE METER */}
+                {totalItemCount > 0 && (
+                  <div className="p-3.5 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-emerald-100/60 rounded-2xl border-2 border-emerald-300 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-extrabold text-xs text-emerald-950">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-200 text-emerald-900 flex items-center justify-center font-black text-xs">
+                          ✨
+                        </div>
+                        <span>Smart Multi-Kurti Bundle Deal</span>
+                      </div>
+                      {totalItemCount >= 3 ? (
+                        <span className="text-[10px] font-black text-emerald-900 bg-emerald-200/90 px-2.5 py-0.5 rounded-full border border-emerald-400 flex items-center gap-1 shadow-2xs">
+                          🎉 MAX ₹400 OFF ACTIVE
+                        </span>
+                      ) : totalItemCount === 2 ? (
+                        <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                          ✓ ₹200 SAVINGS ACTIVE
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                          +1 Item for ₹200 OFF
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-stone-700">
+                        <span>
+                          {totalItemCount === 1 
+                            ? 'Add 1 more item to get Flat ₹200 OFF' 
+                            : totalItemCount === 2 
+                            ? 'Add 1 more item for Flat ₹400 OFF' 
+                            : 'Tier 3 Super Saver Bundle Active'}
+                        </span>
+                        <span className="text-emerald-900 font-extrabold">
+                          {totalItemCount >= 3 ? 'Saved ₹400 Extra' : totalItemCount === 2 ? 'Saved ₹200 Extra' : 'Unlock ₹200'}
+                        </span>
+                      </div>
+
+                      {/* Multi-tier step meter */}
+                      <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        <div className={`h-2 rounded-full transition-all ${totalItemCount >= 1 ? 'bg-emerald-500' : 'bg-stone-200'}`} title="1 Item" />
+                        <div className={`h-2 rounded-full transition-all ${totalItemCount >= 2 ? 'bg-emerald-500' : 'bg-stone-200'}`} title="2 Items - ₹200 OFF" />
+                        <div className={`h-2 rounded-full transition-all ${totalItemCount >= 3 ? 'bg-emerald-600 shadow-xs' : 'bg-stone-200'}`} title="3 Items - ₹400 OFF" />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -664,6 +722,16 @@ export const CartDrawer = ({
                   </div>
                 )}
 
+                {/* Bundle Savings Line */}
+                {bundleDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-800 font-bold">
+                    <span className="flex items-center gap-1">
+                      <span>🎁 Multi-Kurti Bundle Deal</span>
+                    </span>
+                    <span>-₹{bundleDiscount.toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+
                 {/* Coupon Discount Line */}
                 {couponDiscount > 0 && (
                   <div className="flex justify-between text-emerald-800 font-bold">
@@ -705,6 +773,7 @@ export const CartDrawer = ({
                   onProceedToCheckout({
                     subtotal,
                     discountAmount: totalDiscount,
+                    bundleDiscount,
                     couponDiscount,
                     timerDiscount,
                     appliedPromo,

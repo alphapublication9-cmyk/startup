@@ -21,7 +21,9 @@ import {
   ChevronRight,
   Heart,
   Share2,
-  X
+  X,
+  MapPin,
+  Play
 } from 'lucide-react';
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
@@ -40,6 +42,30 @@ export const ProductQuickView = ({
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
+  
+  // Pincode Delivery Estimator
+  const [pincodeInput, setPincodeInput] = useState('');
+  const [pincodeResult, setPincodeResult] = useState(null);
+
+  const handleCheckPincode = (e) => {
+    e?.preventDefault();
+    const clean = pincodeInput.replace(/\D/g, '').slice(0, 6);
+    if (clean.length === 6) {
+      const today = new Date();
+      const estDate = new Date(today.getTime() + (3 * 24 * 60 * 60 * 1000));
+      const formatted = estDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+      setPincodeResult({
+        valid: true,
+        pincode: clean,
+        message: `⚡ Express Delivery by ${formatted} (2-3 Business Days) • Free Shipping & COD Available`
+      });
+    } else {
+      setPincodeResult({
+        valid: false,
+        message: 'Please enter a valid 6-digit Pincode'
+      });
+    }
+  };
   
   // Lightbox Zoom State
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -314,14 +340,73 @@ export const ProductQuickView = ({
 
                 {/* Size Guide Table Toggle */}
                 {showSizeGuide && (
-                  <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-stone-700 animate-fadeIn space-y-1">
-                    <strong className="block font-bold text-stone-900">Standard Indian Size Chart:</strong>
-                    <div className="grid grid-cols-4 gap-1 text-center font-mono text-[11px] pt-1">
-                      <div className="p-1 bg-white rounded border">S (36")</div>
-                      <div className="p-1 bg-white rounded border">M (38")</div>
-                      <div className="p-1 bg-white rounded border">L (40")</div>
-                      <div className="p-1 bg-white rounded border">XL (42")</div>
+                  <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-300 text-xs text-stone-700 animate-fadeIn space-y-2">
+                    <div className="flex items-center justify-between">
+                      <strong className="font-bold text-stone-900 flex items-center gap-1.5">
+                        <Ruler size={14} className="text-amber-700" />
+                        <span>Boutique Body Measurement Chart (Inches)</span>
+                      </strong>
+                      <span className="text-[10px] text-amber-800 font-bold bg-amber-200/70 px-2 py-0.5 rounded">Standard Fit</span>
                     </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-center text-[11px] font-mono border-collapse bg-white rounded-xl overflow-hidden border border-amber-200">
+                        <thead className="bg-amber-100/70 text-amber-950 font-bold">
+                          <tr>
+                            <th className="p-1.5 border-b border-amber-200">Size</th>
+                            <th className="p-1.5 border-b border-amber-200">Bust</th>
+                            <th className="p-1.5 border-b border-amber-200">Waist</th>
+                            <th className="p-1.5 border-b border-amber-200">Hip</th>
+                            <th className="p-1.5 border-b border-amber-200">Length</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-amber-100 text-stone-800">
+                          <tr className={selectedSize === 'S' ? 'bg-amber-100 font-bold' : ''}>
+                            <td className="p-1.5 font-bold">S</td>
+                            <td className="p-1.5">36"</td>
+                            <td className="p-1.5">32"</td>
+                            <td className="p-1.5">38"</td>
+                            <td className="p-1.5">44"</td>
+                          </tr>
+                          <tr className={selectedSize === 'M' ? 'bg-amber-100 font-bold' : ''}>
+                            <td className="p-1.5 font-bold">M</td>
+                            <td className="p-1.5">38"</td>
+                            <td className="p-1.5">34"</td>
+                            <td className="p-1.5">40"</td>
+                            <td className="p-1.5">44"</td>
+                          </tr>
+                          <tr className={selectedSize === 'L' ? 'bg-amber-100 font-bold' : ''}>
+                            <td className="p-1.5 font-bold">L</td>
+                            <td className="p-1.5">40"</td>
+                            <td className="p-1.5">36"</td>
+                            <td className="p-1.5">42"</td>
+                            <td className="p-1.5">45"</td>
+                          </tr>
+                          <tr className={selectedSize === 'XL' ? 'bg-amber-100 font-bold' : ''}>
+                            <td className="p-1.5 font-bold">XL</td>
+                            <td className="p-1.5">42"</td>
+                            <td className="p-1.5">38"</td>
+                            <td className="p-1.5">44"</td>
+                            <td className="p-1.5">45"</td>
+                          </tr>
+                          <tr className={selectedSize === 'XXL' ? 'bg-amber-100 font-bold' : ''}>
+                            <td className="p-1.5 font-bold">XXL</td>
+                            <td className="p-1.5">44"</td>
+                            <td className="p-1.5">40"</td>
+                            <td className="p-1.5">46"</td>
+                            <td className="p-1.5">46"</td>
+                          </tr>
+                          <tr className={selectedSize === '3XL' ? 'bg-amber-100 font-bold' : ''}>
+                            <td className="p-1.5 font-bold">3XL</td>
+                            <td className="p-1.5">46"</td>
+                            <td className="p-1.5">42"</td>
+                            <td className="p-1.5">48"</td>
+                            <td className="p-1.5">46"</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[10px] text-stone-500 italic">Tip: If you fall between two sizes, we recommend picking 1 size larger for comfortable festive movement.</p>
                   </div>
                 )}
               </div>
@@ -376,6 +461,45 @@ export const ProductQuickView = ({
                 {isTelegram ? <Send size={16} /> : <MessageCircle size={16} />}
                 <span>Order on {channelLabel}</span>
               </button>
+            </div>
+
+            {/* Pincode Delivery Estimator */}
+            <div className="p-3.5 bg-white rounded-2xl border border-stone-200 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-stone-800">
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={14} className="text-[#700b1d]" />
+                  <span>Check Express Delivery & COD:</span>
+                </span>
+                <span className="text-[10px] text-stone-500 font-normal">All India Pincodes</span>
+              </div>
+
+              <form onSubmit={handleCheckPincode} className="flex gap-2">
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="Enter 6-digit Pincode (e.g. 302001)"
+                  value={pincodeInput}
+                  onChange={(e) => setPincodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="flex-1 px-3 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono text-stone-800 focus:outline-none focus:border-brand-700"
+                />
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-stone-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
+                >
+                  Check
+                </button>
+              </form>
+
+              {pincodeResult && (
+                <div className={`p-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                  pincodeResult.valid 
+                    ? 'bg-emerald-50 text-emerald-900 border border-emerald-300' 
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}>
+                  {pincodeResult.valid ? <Check size={14} className="text-emerald-700 shrink-0" /> : <X size={14} className="text-rose-600 shrink-0" />}
+                  <span>{pincodeResult.message}</span>
+                </div>
+              )}
             </div>
 
             {/* Product Specifications & Care */}

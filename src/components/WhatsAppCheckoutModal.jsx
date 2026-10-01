@@ -63,7 +63,8 @@ export const WhatsAppCheckoutModal = ({
     couponDiscount = Math.round(subtotal * 0.10);
   }
 
-  const discountAmount = checkoutPricing?.discountAmount ?? (timerDiscount + couponDiscount);
+  const bundleDiscount = checkoutPricing?.bundleDiscount || 0;
+  const discountAmount = checkoutPricing?.discountAmount ?? (timerDiscount + couponDiscount + bundleDiscount);
   const grandTotal = checkoutPricing?.grandTotal ?? Math.max(0, subtotal - discountAmount);
 
   const isTelegramActive = settings.orderChannel === 'telegram' || (settings.orderChannel === 'both' && selectedChannel === 'telegram');
@@ -109,6 +110,7 @@ export const WhatsAppCheckoutModal = ({
       totalPrice: grandTotal,
       settings,
       discount: discountAmount,
+      bundleDiscount,
       timerDiscount,
       couponDiscount,
       appliedPromo
@@ -122,6 +124,7 @@ export const WhatsAppCheckoutModal = ({
       items: cartItems,
       totalAmount: grandTotal,
       discount: discountAmount,
+      bundleDiscount,
       timerDiscount,
       couponDiscount,
       promoCode: appliedPromo,

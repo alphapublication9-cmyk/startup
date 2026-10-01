@@ -29,10 +29,12 @@ export const buildOrderMessage = ({
   totalPrice, 
   settings, 
   discount = 0,
+  bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
   appliedPromo = ''
 }) => {
+  const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const itemsListText = cartItems.map((item, idx) => {
     const itemTotal = item.price * item.quantity;
     return `${idx + 1}. 👗 *${item.name}*\n   • Size: ${item.selectedSize || 'Standard'}\n   • Qty: ${item.quantity}\n   • Price: ₹${item.price.toLocaleString('en-IN')} (₹${itemTotal.toLocaleString('en-IN')})`;
@@ -40,15 +42,19 @@ export const buildOrderMessage = ({
 
   // Build itemized discount lines
   const discountLines = [];
+  if (bundleDiscount > 0) {
+    discountLines.push(`• 🎁 Multi-Item Bundle Savings: -₹${bundleDiscount.toLocaleString('en-IN')}`);
+  }
   if (timerDiscount > 0) {
     discountLines.push(`• ⚡ 15-Min Rush Flash Discount: -₹${timerDiscount.toLocaleString('en-IN')}`);
   }
   if (couponDiscount > 0 && appliedPromo) {
     discountLines.push(`• 🏷️ Promo Code (${appliedPromo}): -₹${couponDiscount.toLocaleString('en-IN')}`);
-  } else if (discount > 0 && !(timerDiscount > 0)) {
+  } else if (discount > 0 && !(timerDiscount > 0) && !(bundleDiscount > 0)) {
     discountLines.push(`• Discount Applied: -₹${discount.toLocaleString('en-IN')}`);
   }
 
+  const discountText = discountLines.length > 0 ? `${discountLines.join('\n')}\n` : '';
   const totalQty = cartItems.reduce((a, c) => a + c.quantity, 0);
   const luckyDrawQualified = totalQty >= 3;
   const luckyDrawText = luckyDrawQualified ? `🎁 *FESTIVE LUCKY DRAW:* 100% QUALIFIED (Order of ${totalQty} items entered for Grand Banarasi Saree Giveaway!)\n━━━━━━━━━━━━━━━━━━━━\n` : '';
@@ -68,7 +74,7 @@ ${itemsListText}
 
 ━━━━━━━━━━━━━━━━━━━━
 💵 *BILL BREAKDOWN*
-• Item Subtotal: ₹${effectiveSubtotal.toLocaleString('en-IN')}
+• Item Subtotal: ₹${subtotal.toLocaleString('en-IN')}
 ${discountText}• Delivery Charges: Confirmed on WhatsApp (as per location)
 ⭐ *ITEM TOTAL:* *₹${totalPrice.toLocaleString('en-IN')}*
 ━━━━━━━━━━━━━━━━━━━━
@@ -101,6 +107,7 @@ export const generateWhatsAppOrderUrl = ({
   totalPrice, 
   settings, 
   discount = 0,
+  bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
   appliedPromo = ''
@@ -112,6 +119,7 @@ export const generateWhatsAppOrderUrl = ({
     totalPrice, 
     settings, 
     discount,
+    bundleDiscount,
     timerDiscount,
     couponDiscount,
     appliedPromo 
@@ -132,6 +140,7 @@ export const generateTelegramOrderUrl = ({
   totalPrice, 
   settings, 
   discount = 0,
+  bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
   appliedPromo = ''
@@ -143,6 +152,7 @@ export const generateTelegramOrderUrl = ({
     totalPrice, 
     settings, 
     discount,
+    bundleDiscount,
     timerDiscount,
     couponDiscount,
     appliedPromo 
@@ -182,6 +192,7 @@ export const generateOrderUrlByChannel = ({
   totalPrice, 
   settings, 
   discount = 0,
+  bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
   appliedPromo = ''
@@ -194,6 +205,7 @@ export const generateOrderUrlByChannel = ({
       totalPrice, 
       settings, 
       discount,
+      bundleDiscount,
       timerDiscount,
       couponDiscount,
       appliedPromo 
@@ -205,6 +217,7 @@ export const generateOrderUrlByChannel = ({
     totalPrice, 
     settings, 
     discount,
+    bundleDiscount,
     timerDiscount,
     couponDiscount,
     appliedPromo 
