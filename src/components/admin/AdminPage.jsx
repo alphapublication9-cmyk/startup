@@ -102,7 +102,10 @@ import {
   fetchCloudCategories,
   fetchCloudSettings,
   fetchCloudCoupons,
-  fetchCloudReviews
+  fetchCloudReviews,
+  deleteCloudOrder,
+  updateCloudOrderStatus,
+  fetchCloudOrders
 } from '../../utils/cloudSync';
 
 export const AdminPage = ({ 
@@ -1568,8 +1571,49 @@ export const AdminPage = ({
     return matchesCat && matchesSearch;
   });
 
+  // Admin Orders State & Cloud Sync
+  const [adminOrders, setAdminOrders] = useState(orders);
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState('All');
+
+  useEffect(() => {
+    setAdminOrders(orders);
+  }, [orders]);
+
+  useEffect(() => {
+    if (activeTab === 'orders' || activeTab === 'invoices') {
+      fetchCloudOrders().then(fresh => {
+        if (fresh && fresh.length > 0) setAdminOrders(fresh);
+      }).catch(() => {});
+    }
+  }, [activeTab]);
+
+  const handleDeleteOrder = async (orderId) => {
+    if (window.confirm(`Are you sure you want to delete order #${orderId}? This cannot be undone.`)) {
+      const updated = adminOrders.filter(o => o.id !== orderId);
+      setAdminOrders(updated);
+      try {
+        localStorage.setItem('aura_kurti_orders', JSON.stringify(updated));
+      } catch {}
+      await deleteCloudOrder(orderId);
+      setSaveSuccessMsg(`Order #${orderId} deleted successfully from local & cloud.`);
+      setTimeout(() => setSaveSuccessMsg(''), 3000);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    const updated = adminOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+    setAdminOrders(updated);
+    try {
+      localStorage.setItem('aura_kurti_orders', JSON.stringify(updated));
+    } catch {}
+    await updateCloudOrderStatus(orderId, newStatus);
+    setSaveSuccessMsg(`Order #${orderId} status changed to "${newStatus}"!`);
+    setTimeout(() => setSaveSuccessMsg(''), 3000);
+  };
+
   // Filtered orders for invoice generator
-  const filteredInvoiceOrders = orders.filter(ord => {
+  const filteredInvoiceOrders = adminOrders.filter(ord => {
     const q = invoiceSearchQuery.toLowerCase();
     const orderId = (ord.id || '').toLowerCase();
     const customerName = (ord.customer?.name || '').toLowerCase();
@@ -1577,9 +1621,28 @@ export const AdminPage = ({
     return orderId.includes(q) || customerName.includes(q) || phone.includes(q);
   });
 
+  // Filtered orders for orders log tab
+  const filteredOrdersList = adminOrders.filter(ord => {
+    if (orderSearchQuery.trim()) {
+      const q = orderSearchQuery.toLowerCase();
+      const orderId = (ord.id || '').toLowerCase();
+      const customerName = (ord.customer?.name || '').toLowerCase();
+      const phone = (ord.customer?.phone || '').toLowerCase();
+      const city = (ord.customer?.city || '').toLowerCase();
+      if (!orderId.includes(q) && !customerName.includes(q) && !phone.includes(q) && !city.includes(q)) {
+        return false;
+      }
+    }
+    if (orderStatusFilter !== 'All') {
+      const st = ord.status || 'Received';
+      if (st.toLowerCase() !== orderStatusFilter.toLowerCase()) return false;
+    }
+    return true;
+  });
+
   // Calculate quick stats for analytics
-  const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const avgOrderValue = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
+  const totalRevenue = adminOrders.reduce((sum, o) => sum + (Number(o.totalAmount || o.grandTotal) || 0), 0);
+  const avgOrderValue = adminOrders.length > 0 ? Math.round(totalRevenue / adminOrders.length) : 0;
   const inStockCount = products.filter(p => p.inStock).length;
   const codOrders = orders.filter(o => (o.customer?.paymentMethod || '').includes('Cash') || (o.customer?.paymentMethod || '').includes('COD')).length;
   const upiOrders = orders.length - codOrders;
@@ -2121,8 +2184,12 @@ export const AdminPage = ({
                         <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
                           <td className="p-3.5">
                             <img
-                              src={p.image}
+                              src={normalizeImageUrl(p.image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : ''))}
                               alt={p.name}
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=300&q=80';
+                              }}
                               className="w-14 h-16 object-cover object-top rounded-xl border border-stone-200 shadow-sm"
                             />
                           </td>
@@ -2236,8 +2303,12 @@ export const AdminPage = ({
                       <div className="flex items-center gap-3.5">
                         {catImage ? (
                           <img
-                            src={catImage}
+                            src={normalizeImageUrl(catImage)}
                             alt={catName}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.style.display = 'none';
+                            }}
                             className="w-12 h-12 rounded-2xl object-cover border border-gold-300 shadow-sm shrink-0"
                           />
                         ) : (
@@ -2711,71 +2782,185 @@ export const AdminPage = ({
         {/* TAB 6: CUSTOMER ORDERS LOG */}
         {activeTab === 'orders' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-sm">
               <div>
-                <h2 className="font-serif text-lg font-bold text-stone-900">
-                  Customer WhatsApp Orders & Inquiries
+                <h2 className="font-serif text-lg font-bold text-stone-900 flex items-center gap-2">
+                  <ShoppingBag size={20} className="text-amber-700" />
+                  <span>Customer WhatsApp Orders & Inquiries ({adminOrders.length})</span>
                 </h2>
                 <p className="text-xs text-stone-500">
-                  All customer checkout records with 1-click Invoice generation
+                  All customer checkout records synced with Supabase Cloud • Live status management & 1-click Invoice generation
                 </p>
               </div>
-              <span className="text-xs font-bold bg-gold-100 text-gold-900 px-3 py-1 rounded-full">
-                Total {orders.length} Inquiries
-              </span>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const fresh = await fetchCloudOrders();
+                    if (fresh) setAdminOrders(fresh);
+                    setSaveSuccessMsg("✅ Orders synced from cloud!");
+                    setTimeout(() => setSaveSuccessMsg(''), 3000);
+                  }}
+                  className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Sync Orders from Supabase"
+                >
+                  <RotateCcw size={13} />
+                  <span>Refresh Orders</span>
+                </button>
+                <span className="text-xs font-bold bg-gold-100 text-gold-900 px-3 py-1.5 rounded-xl">
+                  Total {adminOrders.length} Inquiries
+                </span>
+              </div>
             </div>
 
-            {orders.length === 0 ? (
-              <div className="bg-white p-12 text-center rounded-2xl border border-stone-200">
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200 shadow-sm">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by Order ID, Customer Name, Phone, City..."
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-xs focus:outline-none focus:border-brand-700"
+                />
+                <Search size={15} className="absolute left-3 top-2.5 text-stone-400" />
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold text-stone-600">Status:</span>
+                <select
+                  value={orderStatusFilter}
+                  onChange={(e) => setOrderStatusFilter(e.target.value)}
+                  className="px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-800 focus:outline-none focus:border-brand-700 cursor-pointer"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Received">📥 Received</option>
+                  <option value="Confirmed">✅ Confirmed</option>
+                  <option value="Processing">🔄 Processing</option>
+                  <option value="Dispatched">🚚 Dispatched</option>
+                  <option value="Delivered">🎁 Delivered</option>
+                  <option value="Cancelled">❌ Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            {adminOrders.length === 0 ? (
+              <div className="bg-white p-12 text-center rounded-2xl border border-stone-200 shadow-sm">
                 <ShoppingBag size={36} className="mx-auto text-stone-300 mb-2" />
                 <p className="font-serif text-base font-bold text-stone-700">No Orders Placed Yet</p>
                 <p className="text-xs text-stone-400 mt-1">
                   When customers checkout on the website, their order records will appear here.
                 </p>
               </div>
+            ) : filteredOrdersList.length === 0 ? (
+              <div className="bg-white p-8 text-center rounded-2xl border border-stone-200 text-stone-500 text-xs">
+                No orders matching "{orderSearchQuery}" with status "{orderStatusFilter}".
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {orders.map((ord) => (
-                  <div key={ord.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between border-b border-stone-100 pb-2">
-                        <div>
-                          <p className="font-bold text-base text-stone-900">{ord.customer?.name || 'Customer'}</p>
-                          <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
-                            <Phone size={12} /> {ord.customer?.phone}
-                          </p>
-                        </div>
-                        <span className="text-xs font-extrabold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
-                          ₹{ord.totalAmount?.toLocaleString('en-IN')}
-                        </span>
-                      </div>
+                {filteredOrdersList.map((ord) => {
+                  const currentStatus = ord.status || 'Received';
+                  const statusColors = {
+                    Received: 'bg-amber-100 text-amber-900 border-amber-300',
+                    Confirmed: 'bg-blue-100 text-blue-900 border-blue-300',
+                    Processing: 'bg-purple-100 text-purple-900 border-purple-300',
+                    Dispatched: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+                    Delivered: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+                    Cancelled: 'bg-rose-100 text-rose-900 border-rose-300'
+                  };
 
-                      <div className="text-xs text-stone-600 space-y-1 mt-2.5">
-                        <p><strong>Delivery Address:</strong> {ord.customer?.address}, {ord.customer?.city} ({ord.customer?.pincode})</p>
-                        <p><strong>Payment Preference:</strong> {ord.customer?.paymentMethod}</p>
-                        <p className="text-[11px] text-stone-400">Date: {new Date(ord.createdAt).toLocaleString()}</p>
-                      </div>
-
-                      <div className="bg-stone-50 p-3 rounded-xl text-xs space-y-1.5 mt-2.5">
-                        <p className="font-bold text-stone-700">Items Ordered:</p>
-                        {ord.items?.map((it, idx) => (
-                          <div key={idx} className="flex justify-between text-xs text-stone-600">
-                            <span>• {it.name} (Size: {it.selectedSize}) x{it.quantity}</span>
-                            <span className="font-bold">₹{(it.price * it.quantity).toLocaleString('en-IN')}</span>
+                  return (
+                    <div key={ord.id} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4 flex flex-col justify-between hover:border-gold-400 transition-colors">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between border-b border-stone-100 pb-2.5">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-extrabold bg-stone-100 text-stone-900 px-2 py-0.5 rounded-md border border-stone-200">
+                                #{ord.id}
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${statusColors[currentStatus] || statusColors.Received}`}>
+                                {currentStatus}
+                              </span>
+                            </div>
+                            <p className="font-bold text-base text-stone-900 mt-1.5">{ord.customer?.name || 'Customer'}</p>
+                            <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
+                              <Phone size={12} /> {ord.customer?.phone}
+                            </p>
                           </div>
-                        ))}
+                          <div className="text-right">
+                            <span className="text-sm font-black text-brand-950 bg-gold-200 px-3 py-1 rounded-full">
+                              ₹{(ord.totalAmount || ord.grandTotal || 0).toLocaleString('en-IN')}
+                            </span>
+                            <p className="text-[10px] text-stone-400 mt-1">{new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-stone-600 space-y-1 bg-stone-50/70 p-3 rounded-xl border border-stone-100">
+                          <p><strong>📍 Delivery Address:</strong> {ord.customer?.address}, {ord.customer?.city} ({ord.customer?.pincode})</p>
+                          <p><strong>💳 Payment Preference:</strong> {ord.customer?.paymentMethod || 'Prepaid / UPI'}</p>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-xl border border-stone-200 text-xs space-y-1.5">
+                          <p className="font-bold text-stone-700 text-[11px]">Ordered Items ({ord.items?.reduce((a, c) => a + (c.quantity || 1), 0) || 0}):</p>
+                          {ord.items?.map((it, idx) => (
+                            <div key={idx} className="flex justify-between text-xs text-stone-600">
+                              <span className="truncate max-w-[220px]">• {it.name} (Size: {it.selectedSize}) x{it.quantity}</span>
+                              <span className="font-bold">₹{((it.price || 0) * (it.quantity || 1)).toLocaleString('en-IN')}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Status Changer */}
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <span className="text-[11px] font-bold text-stone-500">Update Status:</span>
+                          <select
+                            value={currentStatus}
+                            onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
+                            className="text-xs font-bold bg-stone-50 border border-stone-300 rounded-lg px-2.5 py-1 text-stone-800 cursor-pointer focus:outline-none focus:border-brand-700"
+                          >
+                            <option value="Received">📥 Received</option>
+                            <option value="Confirmed">✅ Confirmed</option>
+                            <option value="Processing">🔄 Processing</option>
+                            <option value="Dispatched">🚚 Dispatched</option>
+                            <option value="Delivered">🎁 Delivered</option>
+                            <option value="Cancelled">❌ Cancelled</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons: Bill, WhatsApp, Delete */}
+                      <div className="pt-2 border-t border-stone-100 flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenInvoice(ord)}
+                          className="flex-1 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Receipt size={14} className="text-amber-700" />
+                          <span>Generate Bill</span>
+                        </button>
+
+                        <a
+                          href={`https://wa.me/91${String(ord.customer?.phone || '').replace(/[^\d]/g, '')}?text=${encodeURIComponent(`Namaste ${ord.customer?.name || 'Customer'}, greetings from ${storeSettings.storeName || 'Radhika Kurti Collection'}! Your Order #${ord.id} status is: ${currentStatus}. Thank you!`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1 transition-colors"
+                          title="Send WhatsApp Update to Customer"
+                        >
+                          <MessageCircle size={14} />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </a>
+
+                        <button
+                          onClick={() => handleDeleteOrder(ord.id)}
+                          className="p-2.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                          title="Delete Order Record"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => handleOpenInvoice(ord)}
-                      className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Receipt size={14} className="text-amber-700" />
-                      <span>Generate & Print Bill</span>
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
