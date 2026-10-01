@@ -35,10 +35,7 @@ export const buildOrderMessage = ({
 }) => {
   const itemsListText = cartItems.map((item, idx) => {
     const itemTotal = item.price * item.quantity;
-    const photoLine = (item.image && !item.image.startsWith('data:') && !item.image.startsWith('blob:')) 
-      ? `\n   • Photo: ${item.image}` 
-      : '';
-    return `${idx + 1}. 👗 *${item.name}*\n   • Size: ${item.selectedSize || 'Standard'}\n   • Qty: ${item.quantity}\n   • Price: ₹${item.price.toLocaleString('en-IN')} (₹${itemTotal.toLocaleString('en-IN')})${photoLine}`;
+    return `${idx + 1}. 👗 *${item.name}*\n   • Size: ${item.selectedSize || 'Standard'}\n   • Qty: ${item.quantity}\n   • Price: ₹${item.price.toLocaleString('en-IN')} (₹${itemTotal.toLocaleString('en-IN')})`;
   }).join('\n\n');
 
   // Build itemized discount lines
@@ -81,10 +78,6 @@ ${discountText}• Delivery Charges: Confirmed on WhatsApp (as per location)
  * Builds single product inquiry message
  */
 export const buildSingleProductMessage = ({ product, selectedSize, settings }) => {
-  const photoLine = (product.image && !product.image.startsWith('data:') && !product.image.startsWith('blob:'))
-    ? `\n📸 *Product Photo:* ${product.image}`
-    : '';
-
   return `✨ *INQUIRY / DIRECT ORDER - ${settings.storeName || 'RADHIKA KURTI COLLECTION'}* ✨
 ━━━━━━━━━━━━━━━━━━━━
 Hello! I would like to order this item:
@@ -93,7 +86,7 @@ Hello! I would like to order this item:
 📏 *Selected Size:* ${selectedSize || product.sizes?.[0] || 'M'}
 💰 *Price:* ₹${product.price.toLocaleString('en-IN')} ${product.originalPrice ? `(MRP: ₹${product.originalPrice.toLocaleString('en-IN')})` : ''}
 🧵 *Fabric:* ${product.fabric || 'Pure Silk / Cotton'}
-🎨 *Color:* ${product.color || 'As pictured'}${photoLine}
+🎨 *Color:* ${product.color || 'As pictured'}
 
 Please check size availability and let me know how to proceed with payment and delivery! 🙏`;
 };

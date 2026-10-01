@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+import fs from 'fs';
+import path from 'path';
+import sharp from 'sharp';
+
+const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
   <defs>
     <!-- Background Royal Gradient -->
     <radialGradient id="bgGrad" cx="50%" cy="45%" r="65%">
@@ -158,3 +162,32 @@
   </text>
 
 </svg>
+`;
+
+async function generateAssets() {
+  const publicDir = path.resolve('public');
+  
+  // 1. Save logo.svg
+  fs.writeFileSync(path.join(publicDir, 'logo.svg'), logoSvg);
+  console.log('✅ Created public/logo.svg');
+
+  // 2. Render logo.png (800x800 crisp PNG)
+  await sharp(Buffer.from(logoSvg))
+    .resize(800, 800)
+    .png({ quality: 95 })
+    .toFile(path.join(publicDir, 'logo.png'));
+  console.log('✅ Created public/logo.png (800x800)');
+
+  // 3. Render favicon.png (192x192)
+  await sharp(Buffer.from(logoSvg))
+    .resize(192, 192)
+    .png({ quality: 95 })
+    .toFile(path.join(publicDir, 'favicon.png'));
+  console.log('✅ Created public/favicon.png (192x192)');
+
+  // 4. Save favicon.svg
+  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), logoSvg);
+  console.log('✅ Created public/favicon.svg');
+}
+
+generateAssets();
