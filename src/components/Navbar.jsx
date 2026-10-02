@@ -147,14 +147,14 @@ export const Navbar = ({
         <div className="flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Left: Mobile Menu Trigger + Brand Logo */}
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
             {/* Mobile Menu Trigger */}
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden p-1.5 text-stone-700 hover:text-amber-900 focus:outline-none cursor-pointer shrink-0 -ml-1"
               aria-label="Toggle menu"
             >
-              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
 
             {/* Boutique Brand Logo */}
@@ -165,20 +165,20 @@ export const Navbar = ({
                 if (onGoHome) onGoHome();
                 else if (onScrollToCatalog) onScrollToCatalog();
               }}
-              className="flex items-center gap-2 sm:gap-2.5 min-w-0 group cursor-pointer"
+              className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 group cursor-pointer overflow-hidden"
             >
-              <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm">
+              <div className="w-8 h-8 sm:w-11 sm:h-11 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm">
                 <img 
                   src={settings?.logoUrl || "/logo.png"} 
                   alt={settings?.storeName || "RADHIKA KURTI COLLECTION"} 
                   className="w-full h-full object-contain filter drop-shadow-xs" 
                 />
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="font-heading text-xs xs:text-sm sm:text-lg lg:text-xl font-black tracking-wide sm:tracking-widest text-stone-900 leading-tight whitespace-nowrap">
+              <div className="flex flex-col min-w-0 overflow-hidden">
+                <span className="font-heading text-xs xs:text-sm sm:text-lg lg:text-xl font-black tracking-normal sm:tracking-widest text-stone-900 leading-tight truncate">
                   {settings.storeName || "RADHIKA KURTI COLLECTION"}
                 </span>
-                <span className="text-[8px] sm:text-[9px] tracking-[0.2em] text-[#700b1d] uppercase font-extrabold whitespace-nowrap hidden xs:inline">
+                <span className="text-[7.5px] sm:text-[9px] tracking-[0.15em] text-[#700b1d] uppercase font-extrabold truncate hidden xs:inline">
                   LUXURY DESIGN • ETHNIC FASHION
                 </span>
               </div>
@@ -307,14 +307,14 @@ export const Navbar = ({
           </div>
 
           {/* Action Icons */}
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0 ml-1">
             {/* Mobile Search Toggle */}
             <button 
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="md:hidden p-1.5 text-stone-700 hover:text-amber-900 rounded-full hover:bg-stone-100 cursor-pointer"
+              className="md:hidden p-1.5 text-stone-700 hover:text-amber-900 rounded-full hover:bg-stone-100 cursor-pointer shrink-0"
               aria-label="Search"
             >
-              <Search size={19} />
+              <Search size={18} />
             </button>
 
             {/* Direct WhatsApp / Telegram Quick Contact Button */}
@@ -347,13 +347,13 @@ export const Navbar = ({
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={onOpenCustomerAccount}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-stone-100 hover:bg-amber-100/70 text-stone-800 hover:text-amber-950 border border-stone-200 rounded-full transition-all shadow-2xs cursor-pointer group text-left shrink-0"
+              className="flex items-center gap-1.5 p-1 sm:px-3 sm:py-1.5 bg-stone-100 hover:bg-amber-100/70 text-stone-800 hover:text-amber-950 border border-stone-200 rounded-full transition-all shadow-2xs cursor-pointer group text-left shrink-0"
               title={customerUser ? `Logged in as ${customerUser.name} (${customerUser.phone})` : "Customer Login & Account"}
             >
               <div className="w-6 h-6 rounded-full bg-amber-200/90 text-amber-950 flex items-center justify-center font-black text-xs shrink-0">
                 {customerUser ? customerUser.name.charAt(0).toUpperCase() : <User size={13} />}
               </div>
-              <div className="hidden xs:block leading-tight pr-0.5">
+              <div className="hidden sm:block leading-tight pr-0.5">
                 <span className="text-[9px] text-stone-500 font-medium block">
                   {customerUser ? `Hello, ${customerUser.name.split(' ')[0]}` : 'Hello, Sign in'}
                 </span>
@@ -368,16 +368,16 @@ export const Navbar = ({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onOpenCart}
-              className="relative flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#700b1d] via-[#540614] to-[#38020a] hover:from-[#850e24] hover:to-[#4a040e] text-gold-100 border border-gold-400/40 rounded-full transition-all shadow-md shadow-rose-950/20 group cursor-pointer"
+              className="relative flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#700b1d] via-[#540614] to-[#38020a] hover:from-[#850e24] hover:to-[#4a040e] text-gold-100 border border-gold-400/40 rounded-full transition-all shadow-md shadow-rose-950/20 group cursor-pointer shrink-0"
               aria-label="View Shopping Cart"
             >
-              <ShoppingBag size={17} className="text-gold-300 group-hover:scale-110 transition-transform shrink-0" />
+              <ShoppingBag size={16} className="text-gold-300 group-hover:scale-110 transition-transform shrink-0" />
               <span className="hidden sm:inline font-bold text-xs tracking-wide">Cart</span>
               <motion.span 
                 key={cartCount}
                 initial={{ scale: 0.6 }}
                 animate={{ scale: 1 }}
-                className="min-w-[20px] h-5 px-1.5 bg-gradient-to-br from-amber-300 to-amber-400 text-stone-950 text-[11px] font-black rounded-full flex items-center justify-center shadow-xs shrink-0 leading-none"
+                className="min-w-[18px] h-4.5 px-1 bg-gradient-to-br from-amber-300 to-amber-400 text-stone-950 text-[10px] font-black rounded-full flex items-center justify-center shadow-xs shrink-0 leading-none"
               >
                 {cartCount}
               </motion.span>

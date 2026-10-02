@@ -308,27 +308,21 @@ export const SpinWheelModal = ({
         )}
 
         {/* Top Header Bar - Royal White & Gold */}
-        <div className="px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between border-b border-amber-200/80 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/60 relative z-20 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-gold-400 to-amber-600 text-brand-950 flex items-center justify-center shadow-md font-black text-xl border border-amber-200">
+        <div className="px-3.5 py-2.5 sm:px-6 sm:py-4 flex items-center justify-between border-b border-amber-200/80 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/60 relative z-20 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-gold-400 to-amber-600 text-brand-950 flex items-center justify-center shadow-md font-black text-base sm:text-xl border border-amber-200 shrink-0">
               🎡
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-amber-900 uppercase tracking-widest bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-[9px] sm:text-[10px] font-black text-amber-900 uppercase tracking-widest bg-amber-200/80 px-2 sm:px-2.5 py-0.5 rounded-full border border-amber-300 shrink-0">
                   VIP Royal Spin
                 </span>
-                <span className="text-[10px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 hidden sm:inline">
-                  🔒 1 Spin Limit Per Customer
+                <span className="text-[9px] sm:text-[10px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 truncate">
+                  🔒 1 Free Spin Per Customer
                 </span>
-                {showWinClaim && (
-                  <span className="text-[11px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 flex items-center gap-1 animate-pulse">
-                    <Flame size={12} className="text-rose-500" />
-                    <span>CLAIM WITHIN 15 MIN: {formatCountdown(timeLeft)}</span>
-                  </span>
-                )}
               </div>
-              <h2 className="font-heading text-base sm:text-lg font-black text-brand-950 tracking-wide mt-0.5 line-clamp-1">
+              <h2 className="font-heading text-xs sm:text-base font-black text-brand-950 tracking-wide mt-0.5 truncate">
                 {config.title || "Spin the Royal Wheel to Win Guaranteed Gifts!"}
               </h2>
             </div>
@@ -337,10 +331,10 @@ export const SpinWheelModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 hover:text-stone-900 transition-all cursor-pointer border border-stone-200 active:scale-90"
+            className="p-1.5 sm:p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 hover:text-stone-900 transition-all cursor-pointer border border-stone-200 active:scale-90 shrink-0 ml-2"
             aria-label="Close Spin Wheel"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
@@ -348,22 +342,22 @@ export const SpinWheelModal = ({
         <div className="flex-1 p-3 sm:p-5 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-center bg-[#faf8f5]">
           
           {/* LEFT COLUMN: THE ROYAL SPIN WHEEL */}
-          <div className="lg:col-span-6 flex flex-col items-center justify-center space-y-3 relative py-2">
+          <div className="lg:col-span-6 flex flex-col items-center justify-center space-y-3 relative py-1">
             
             {/* Top Indicator Arrow (Pointing Down onto Top Slice) */}
             <div className="relative z-30 flex flex-col items-center -mb-5">
-              <div className="w-0 h-0 border-l-[16px] border-l-transparent border-r-[16px] border-r-transparent border-t-[28px] border-t-amber-500 drop-shadow-[0_4px_12px_rgba(217,119,6,0.85)]"></div>
-              <div className="w-4 h-4 rounded-full bg-white border-2 border-amber-600 -mt-7 shadow-md"></div>
+              <div className="w-0 h-0 border-l-[14px] border-l-transparent border-r-[14px] border-r-transparent border-t-[24px] border-t-amber-500 drop-shadow-[0_4px_12px_rgba(217,119,6,0.85)]"></div>
+              <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-600 -mt-6 shadow-md"></div>
             </div>
 
             {/* Wheel Outer Chassis */}
-            <div className="relative w-76 h-76 sm:w-92 sm:h-92 md:w-[380px] md:h-[380px] rounded-full p-3 bg-gradient-to-br from-amber-300 via-amber-400 to-amber-600 shadow-[0_12px_40px_rgba(217,119,6,0.4)] border-4 border-amber-200 flex items-center justify-center">
+            <div className="relative w-[270px] h-[270px] xs:w-[300px] xs:h-[300px] sm:w-[340px] sm:h-[340px] md:w-[370px] md:h-[370px] rounded-full p-2.5 sm:p-3 bg-gradient-to-br from-amber-300 via-amber-400 to-amber-600 shadow-[0_12px_40px_rgba(217,119,6,0.4)] border-4 border-amber-200 flex items-center justify-center">
               
               {/* Decorative Perimeter Lights / Jewel Pins */}
               {rimPins.map((pin, i) => (
                 <div 
                   key={i}
-                  className="absolute w-2.5 h-2.5 rounded-full bg-white border border-amber-700 shadow-[0_0_5px_rgba(255,255,255,1)] pointer-events-none"
+                  className="absolute w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white border border-amber-700 shadow-[0_0_5px_rgba(255,255,255,1)] pointer-events-none"
                   style={{
                     left: `${pin.x}%`,
                     top: `${pin.y}%`,
@@ -389,6 +383,7 @@ export const SpinWheelModal = ({
                     const x2 = 200 + 200 * Math.cos(endAngle);
                     const y2 = 200 + 200 * Math.sin(endAngle);
                     const textAngle = i * sliceAngle + sliceAngle / 2;
+                    const isFlipped = textAngle > 90 && textAngle < 270;
 
                     // Alternating rich jewel boutique color palette
                     const defaultSliceColors = [
@@ -408,43 +403,44 @@ export const SpinWheelModal = ({
                           strokeWidth="2.5"
                         />
 
-                        {/* Radial Slice Content (Clean & Large without Clutter) */}
+                        {/* Radial Slice Content (Clean, Upright & Perfectly Oriented) */}
                         <g transform={`translate(200, 200) rotate(${textAngle})`}>
-                          
-                          {/* Large Bold Slice Title */}
-                          <text
-                            x="128"
-                            y="-5"
-                            fill="#ffffff"
-                            fontSize="14.5"
-                            fontWeight="900"
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            fontFamily="system-ui, -apple-system, sans-serif"
-                            letterSpacing="0.3px"
-                            style={{ 
-                              filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.95))'
-                            }}
-                          >
-                            {displayTitle}
-                          </text>
+                          <g transform={isFlipped ? "rotate(180 128 4)" : undefined}>
+                            {/* Large Bold Slice Title */}
+                            <text
+                              x="128"
+                              y="-5"
+                              fill="#ffffff"
+                              fontSize="14"
+                              fontWeight="900"
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontFamily="system-ui, -apple-system, sans-serif"
+                              letterSpacing="0.2px"
+                              style={{ 
+                                filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.95))'
+                              }}
+                            >
+                              {displayTitle}
+                            </text>
 
-                          {/* Value / Worth Subtext Badge */}
-                          <text
-                            x="128"
-                            y="14"
-                            fill="#fef08a"
-                            fontSize="12"
-                            fontWeight="800"
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            fontFamily="system-ui, -apple-system, sans-serif"
-                            style={{ 
-                              filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.95))'
-                            }}
-                          >
-                            {slice.worth || slice.subtext || 'Gift'}
-                          </text>
+                            {/* Value / Worth Subtext Badge */}
+                            <text
+                              x="128"
+                              y="14"
+                              fill="#fef08a"
+                              fontSize="11.5"
+                              fontWeight="800"
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontFamily="system-ui, -apple-system, sans-serif"
+                              style={{ 
+                                filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.95))'
+                              }}
+                            >
+                              {slice.worth || slice.subtext || 'Gift'}
+                            </text>
+                          </g>
                         </g>
                       </g>
                     );
