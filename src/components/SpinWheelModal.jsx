@@ -24,16 +24,18 @@ import {
   Crown,
   RotateCcw,
   Clock,
-  Timer
+  Timer,
+  LogOut
 } from 'lucide-react';
 import { 
   getSpinWheelConfig, 
-  recordSpinWin, 
-  linkSpinWinToCustomer,
+  getUserSpinStatus,
+  recordUserSpinWin,
   DEFAULT_WHEEL_SLICES
 } from '../utils/spinWheel';
 import { 
   getCustomerAuthSession, 
+  setCustomerAuthSession,
   registerLuckyDrawUser, 
   loginLuckyDrawUser 
 } from '../utils/luckyDraw';
@@ -71,8 +73,9 @@ export const SpinWheelModal = ({
   // 15-Minute Live Urgency Timer
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 900 seconds = 15 minutes
 
-  // Customer Auth inside Claim View
+  // Customer Auth & 1-Spin Per User Status
   const [currentUser, setCurrentUser] = useState(getCustomerAuthSession);
+  const [userSpinStatus, setUserSpinStatus] = useState({ hasSpun: false, prize: null });
   const [authTab, setAuthTab] = useState('register'); // 'register' | 'login'
   const [authFormData, setAuthFormData] = useState({
     name: '',
@@ -90,12 +93,30 @@ export const SpinWheelModal = ({
   const totalSlices = slices.length;
   const sliceAngle = 360 / totalSlices;
 
+  // Initialize and check user spin status whenever modal is opened
   useEffect(() => {
     if (isOpen) {
       setConfig(getSpinWheelConfig());
-      setCurrentUser(getCustomerAuthSession());
+      const sessionUser = getCustomerAuthSession();
+      setCurrentUser(sessionUser);
       setAuthError('');
       setAuthSuccessMsg('');
+
+      if (sessionUser) {
+        const status = getUserSpinStatus(sessionUser);
+        setUserSpinStatus(status);
+        if (status.hasSpun && status.prize) {
+          setWonPrize(status.prize);
+          setShowWinClaim(true);
+        } else {
+          setWonPrize(null);
+          setShowWinClaim(false);
+        }
+      } else {
+        setUserSpinStatus({ hasSpun: false, prize: null });
+        setWonPrize(null);
+        setShowWinClaim(false);
+      }
     }
   }, [isOpen]);
 
@@ -121,11 +142,31 @@ export const SpinWheelModal = ({
   // Spin Action: Automated, Fair & 100% Mathematically Aligned with Pointer
   const handleSpinWheel = () => {
     if (isSpinning) return;
+
+    // 1. Check if user is logged in
+    const activeUser = currentUser || getCustomerAuthSession();
+    if (!activeUser) {
+      setAuthError('👉 Please enter your Name & Mobile Number below to unlock your 1 Free Spin!');
+      const formEl = document.getElementById('spin-auth-form-card');
+      if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    // 2. Check if this user has already used their 1 spin limit
+    const status = getUserSpinStatus(activeUser);
+    if (status.hasSpun) {
+      setUserSpinStatus(status);
+      setWonPrize(status.prize);
+      setShowWinClaim(true);
+      setAuthError(`✨ You have already used your 1 Free VIP Spin with mobile number ${activeUser.phone}. Your won prize is shown below!`);
+      return;
+    }
+
     setIsSpinning(true);
     setShowWinClaim(false);
     setWonPrize(null);
     setConfettiActive(false);
-    setTimeLeft(15 * 60); // Reset 15 minute timer on each spin
+    setTimeLeft(15 * 60); // Reset 15 minute timer on spin
 
     // Pick random slice index [0 ... totalSlices - 1]
     const prizeIndex = Math.floor(Math.random() * totalSlices);
@@ -149,23 +190,26 @@ export const SpinWheelModal = ({
     setRotation(targetRotation);
 
     // Spin animation duration 4.5 seconds
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsSpinning(false);
       setWonPrize(targetSlice);
       setShowWinClaim(true);
       setConfettiActive(true);
 
-      // Record spin
-      const sessionUser = getCustomerAuthSession();
-      recordSpinWin({ prize: targetSlice, user: sessionUser });
-
-      if (sessionUser) {
-        linkSpinWinToCustomer(sessionUser, targetSlice);
+      // Permanently record spin tied to this logged in customer
+      try {
+        const result = await recordUserSpinWin({ prize: targetSlice, user: activeUser });
+        if (result?.user) {
+          setCurrentUser(result.user);
+          setUserSpinStatus({ hasSpun: true, prize: targetSlice, wonAt: new Date().toISOString() });
+        }
+      } catch (err) {
+        console.error("Error recording user spin win:", err);
       }
     }, 4500);
   };
 
-  // Auth Handler inside Wheel
+  // Auth Submit Handler (Register or Login)
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     setAuthError('');
@@ -182,19 +226,49 @@ export const SpinWheelModal = ({
         setAuthError(res.error);
         return;
       }
+
       setCurrentUser(res.user);
-      if (wonPrize) linkSpinWinToCustomer(res.user, wonPrize);
-      setAuthSuccessMsg(`🎉 Account created & prize claimed to Ticket #${res.user.ticketNumber}!`);
+      const status = getUserSpinStatus(res.user);
+      setUserSpinStatus(status);
+
+      if (status.hasSpun && status.prize) {
+        setWonPrize(status.prize);
+        setShowWinClaim(true);
+        setAuthSuccessMsg(`🎉 Welcome ${res.user.name}! Your previously won coupon is retrieved.`);
+      } else {
+        setAuthSuccessMsg(`🎉 Account verified! Your 1 VIP Free Spin is UNLOCKED! Tap SPIN now!`);
+      }
     } else {
       const res = loginLuckyDrawUser(authFormData.phone, authFormData.password);
       if (!res.success) {
         setAuthError(res.error);
         return;
       }
+
       setCurrentUser(res.user);
-      if (wonPrize) linkSpinWinToCustomer(res.user, wonPrize);
-      setAuthSuccessMsg(`🎉 Welcome back ${res.user.name}! Prize saved to your account.`);
+      const status = getUserSpinStatus(res.user);
+      setUserSpinStatus(status);
+
+      if (status.hasSpun && status.prize) {
+        setWonPrize(status.prize);
+        setShowWinClaim(true);
+        setAuthSuccessMsg(`🎉 Welcome back ${res.user.name}! Your won coupon reward is shown below.`);
+      } else {
+        setAuthSuccessMsg(`🎉 Welcome back ${res.user.name}! Your 1 VIP Free Spin is UNLOCKED! Tap SPIN to play!`);
+      }
     }
+  };
+
+  // Handle Logout / Switch Account
+  const handleSwitchAccount = () => {
+    setCustomerAuthSession(null);
+    setCurrentUser(null);
+    setUserSpinStatus({ hasSpun: false, prize: null });
+    setWonPrize(null);
+    setShowWinClaim(false);
+    setAuthError('');
+    setAuthSuccessMsg('');
+    setAuthFormData({ name: '', phone: '', password: '', city: '' });
   };
 
   const handleCopyCode = (code) => {
@@ -216,7 +290,7 @@ export const SpinWheelModal = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/75 backdrop-blur-md overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
       <div 
         className="relative w-full max-w-5xl bg-[#fdfcf9] text-stone-900 rounded-3xl border-2 border-amber-400 shadow-[0_20px_60px_rgba(0,0,0,0.35)] overflow-hidden my-auto max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -244,19 +318,18 @@ export const SpinWheelModal = ({
                 <span className="text-[10px] font-black text-amber-900 uppercase tracking-widest bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300">
                   VIP Royal Spin
                 </span>
-                {showWinClaim ? (
+                <span className="text-[10px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 hidden sm:inline">
+                  🔒 1 Spin Limit Per Customer
+                </span>
+                {showWinClaim && (
                   <span className="text-[11px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 flex items-center gap-1 animate-pulse">
                     <Flame size={12} className="text-rose-500" />
-                    <span>OFFER AVAILABLE FOR ONLY 15 MIN: {formatCountdown(timeLeft)}</span>
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-stone-600 font-medium hidden sm:inline">
-                    • 100% Free Guaranteed Rewards
+                    <span>CLAIM WITHIN 15 MIN: {formatCountdown(timeLeft)}</span>
                   </span>
                 )}
               </div>
               <h2 className="font-heading text-base sm:text-lg font-black text-brand-950 tracking-wide mt-0.5 line-clamp-1">
-                {config.title || "Spin the Royal Wheel to Win!"}
+                {config.title || "Spin the Royal Wheel to Win Guaranteed Gifts!"}
               </h2>
             </div>
           </div>
@@ -382,51 +455,288 @@ export const SpinWheelModal = ({
                 </svg>
               </div>
 
-              {/* Central 3D Spin Button Hub */}
+              {/* Central 3D Spin Button Hub (Contextual based on Login & Spin Status) */}
               <button
                 type="button"
                 onClick={handleSpinWheel}
-                disabled={isSpinning}
-                className="absolute w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-amber-200 via-amber-400 to-amber-500 hover:from-amber-100 hover:to-amber-400 text-brand-950 font-black text-xs uppercase tracking-wider flex flex-col items-center justify-center shadow-xl border-4 border-white cursor-pointer active:scale-95 transition-all z-20 group disabled:cursor-not-allowed disabled:opacity-90"
+                disabled={isSpinning || (currentUser && userSpinStatus.hasSpun)}
+                className={`absolute w-20 h-20 sm:w-22 sm:h-22 rounded-full flex flex-col items-center justify-center shadow-xl border-4 border-white cursor-pointer active:scale-95 transition-all z-20 group disabled:cursor-not-allowed ${
+                  !currentUser
+                    ? 'bg-gradient-to-br from-amber-300 via-amber-400 to-amber-500 text-stone-900 animate-pulse'
+                    : userSpinStatus.hasSpun
+                      ? 'bg-gradient-to-br from-emerald-100 to-stone-200 text-emerald-950 opacity-90'
+                      : 'bg-gradient-to-br from-amber-200 via-amber-400 to-amber-500 hover:from-amber-100 hover:to-amber-400 text-brand-950 ring-4 ring-amber-300/60 animate-pulse'
+                }`}
               >
-                <Crown size={18} className="text-brand-950 group-hover:scale-125 transition-transform" />
-                <span className="font-black text-[13px] leading-tight mt-0.5">
-                  {isSpinning ? 'LUCKY...' : 'SPIN'}
-                </span>
-                <span className="text-[8px] font-black text-amber-950/90 -mt-0.5 tracking-tighter">
-                  100% FREE
-                </span>
+                {!currentUser ? (
+                  <>
+                    <Lock size={16} className="text-amber-950 mb-0.5" />
+                    <span className="font-black text-[11px] leading-tight">LOGIN</span>
+                    <span className="text-[7.5px] font-black text-amber-950/90 tracking-tighter">TO SPIN</span>
+                  </>
+                ) : userSpinStatus.hasSpun ? (
+                  <>
+                    <Check size={18} className="text-emerald-800" />
+                    <span className="font-black text-[10px] leading-tight mt-0.5">CLAIMED</span>
+                    <span className="text-[7px] font-bold text-stone-600 tracking-tighter">1 SPIN USED</span>
+                  </>
+                ) : (
+                  <>
+                    <Crown size={18} className="text-brand-950 group-hover:scale-125 transition-transform" />
+                    <span className="font-black text-[13px] leading-tight mt-0.5">
+                      {isSpinning ? 'LUCKY...' : 'SPIN'}
+                    </span>
+                    <span className="text-[8px] font-black text-amber-950/90 -mt-0.5 tracking-tighter">
+                      100% FREE
+                    </span>
+                  </>
+                )}
               </button>
 
             </div>
 
-            <p className="text-[11px] text-stone-600 text-center font-semibold">
-              ✨ Guaranteed Prize on Every Spin • Tap Center Button to Play!
+            {/* Subtext under Wheel */}
+            <p className="text-[11px] text-stone-600 text-center font-semibold max-w-xs">
+              {!currentUser ? (
+                <span className="text-amber-900 font-bold flex items-center justify-center gap-1">
+                  <Lock size={12} /> Please login with Mobile Number to unlock your 1 Free Spin!
+                </span>
+              ) : userSpinStatus.hasSpun ? (
+                <span className="text-emerald-800 font-bold flex items-center justify-center gap-1">
+                  ✓ 1 Spin Limit: Reward linked to +91 {currentUser.phone}!
+                </span>
+              ) : (
+                <span className="text-amber-900 font-bold flex items-center justify-center gap-1">
+                  ✨ 1 VIP Spin Unlocked for {currentUser.name}! Tap Center to Play!
+                </span>
+              )}
             </p>
           </div>
 
-          {/* RIGHT COLUMN: PRIZE SHOWCASE & CUSTOMER AUTH CLAIM */}
+          {/* RIGHT COLUMN: CUSTOMER AUTH & PRIZE CLAIM VIEW */}
           <div className="lg:col-span-6 max-h-[72vh] lg:max-h-[500px] overflow-y-auto pr-1 pt-0.5">
             
-            {/* STATE 1: WELCOME CARD BEFORE SPIN */}
-            {!showWinClaim && !isSpinning && (
-              <div className="p-5 sm:p-6 bg-white rounded-3xl border border-amber-200 shadow-md text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 text-amber-800 border border-amber-300 flex items-center justify-center mx-auto text-2xl shadow-inner">
+            {/* ------------------------------------------------------------- */}
+            {/* VIEW 1: USER NOT LOGGED IN -> MANDATORY LOGIN / REGISTRATION   */}
+            {/* ------------------------------------------------------------- */}
+            {!currentUser && (
+              <div 
+                id="spin-auth-form-card" 
+                className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-amber-300 text-stone-900 space-y-4 shadow-md"
+              >
+                <div className="flex items-center gap-3 pb-3 border-b border-amber-100">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-lg shadow-inner shrink-0">
+                    <Lock size={20} className="text-amber-800" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading text-sm sm:text-base font-bold text-brand-950">
+                      Step 1: Login to Unlock 1 Free Spin
+                    </h3>
+                    <p className="text-[11px] text-stone-600">
+                      Enter your mobile number to verify and claim your guaranteed reward!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab Switcher: New Customer vs Existing Login */}
+                <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200 text-xs font-bold shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthTab('register');
+                      setAuthError('');
+                    }}
+                    className={`flex-1 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs ${
+                      authTab === 'register'
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-brand-950 shadow-sm font-black'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Sparkles size={13} />
+                    <span>New Customer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthTab('login');
+                      setAuthError('');
+                    }}
+                    className={`flex-1 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs ${
+                      authTab === 'login'
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-brand-950 shadow-sm font-black'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Lock size={13} />
+                    <span>Existing Login</span>
+                  </button>
+                </div>
+
+                {/* Error Banner */}
+                {authError && (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                    <AlertCircle size={15} className="shrink-0 text-rose-600" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
+                {/* Success Banner */}
+                {authSuccessMsg && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                    <Check size={15} className="shrink-0 text-emerald-600" />
+                    <span>{authSuccessMsg}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleAuthSubmit} className="space-y-3 text-xs">
+                  {authTab === 'register' && (
+                    <div>
+                      <label className="block font-bold text-stone-700 uppercase tracking-wider text-[10px] mb-1">
+                        Full Name <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Radhika Sharma"
+                          value={authFormData.name}
+                          onChange={(e) => setAuthFormData({ ...authFormData, name: e.target.value })}
+                          className="w-full pl-8 pr-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white text-xs shadow-2xs"
+                        />
+                        <User size={14} className="absolute left-2.5 top-2.5 text-stone-400" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block font-bold text-stone-700 uppercase tracking-wider text-[10px] mb-1">
+                        Mobile Number (Your ID) <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          required
+                          maxLength={10}
+                          placeholder="10-digit mobile"
+                          value={authFormData.phone}
+                          onChange={(e) => setAuthFormData({ ...authFormData, phone: e.target.value })}
+                          className="w-full pl-8 pr-2 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white font-mono text-xs shadow-2xs"
+                        />
+                        <Phone size={14} className="absolute left-2.5 top-2.5 text-stone-400" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-stone-700 uppercase tracking-wider text-[10px] mb-1">
+                        {authTab === 'register' ? 'Set Password' : 'Password'} <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          placeholder="Password"
+                          value={authFormData.password}
+                          onChange={(e) => setAuthFormData({ ...authFormData, password: e.target.value })}
+                          className="w-full pl-8 pr-7 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white text-xs shadow-2xs"
+                        />
+                        <KeyRound size={14} className="absolute left-2.5 top-2.5 text-stone-400" />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2 top-2.5 text-stone-400 hover:text-stone-700 cursor-pointer"
+                        >
+                          {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {authTab === 'register' && (
+                    <div>
+                      <label className="block font-bold text-stone-700 uppercase tracking-wider text-[10px] mb-1">
+                        City & State
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Jaipur, Rajasthan"
+                        value={authFormData.city}
+                        onChange={(e) => setAuthFormData({ ...authFormData, city: e.target.value })}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white text-xs shadow-2xs"
+                      />
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-gradient-to-r from-amber-400 via-gold-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-brand-950 font-black text-xs sm:text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 border border-amber-300"
+                  >
+                    <ShieldCheck size={16} />
+                    <span>{authTab === 'register' ? 'Verify & Unlock My 1 Free VIP Spin' : 'Login & Unlock My 1 Free VIP Spin'}</span>
+                  </button>
+                </form>
+
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/80 text-[11px] text-stone-600 space-y-1">
+                  <div className="flex items-center gap-1 font-bold text-stone-900">
+                    <span>🎁 1 Guaranteed Prize on Every Verified Mobile:</span>
+                  </div>
+                  <p>
+                    Banarasi Silk Dupattas, Pure Silk Kurtis, Kundan Jewelry Sets, or Flat ₹500 & ₹300 Instant Cash Discounts.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ------------------------------------------------------------- */}
+            {/* VIEW 2: LOGGED IN & SPIN IS READY (HAS NOT SPUN YET)          */}
+            {/* ------------------------------------------------------------- */}
+            {currentUser && !userSpinStatus.hasSpun && !isSpinning && !wonPrize && (
+              <div className="p-5 sm:p-6 bg-white rounded-3xl border-2 border-amber-300 shadow-md text-center space-y-4">
+                
+                {/* User Session Profile Header */}
+                <div className="flex items-center justify-between p-2.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs">
+                  <div className="flex items-center gap-2 text-left">
+                    <div className="w-8 h-8 rounded-full bg-[#700b1d] text-gold-200 flex items-center justify-center font-bold text-xs shadow-xs">
+                      {currentUser.name?.[0] || 'U'}
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-stone-500 block">Logged In:</span>
+                      <strong className="text-stone-900">{currentUser.name} (+91 {currentUser.phone})</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSwitchAccount}
+                    className="p-1.5 text-stone-500 hover:text-stone-800 rounded-lg hover:bg-stone-200/60 transition-colors text-[10px] flex items-center gap-1 cursor-pointer"
+                    title="Switch Account / Logout"
+                  >
+                    <LogOut size={12} />
+                    <span>Switch</span>
+                  </button>
+                </div>
+
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-stone-950 border-2 border-amber-200 flex items-center justify-center mx-auto text-2xl shadow-md">
                   👑
                 </div>
+
                 <div>
-                  <h3 className="font-heading text-lg sm:text-xl font-bold text-stone-900">
-                    Welcome to the Royal Spin!
+                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-3 py-0.5 rounded-full uppercase tracking-wider inline-block border border-emerald-300">
+                    🎉 1 VIP Free Spin Unlocked!
+                  </span>
+                  <h3 className="font-heading text-lg sm:text-xl font-bold text-stone-900 mt-1">
+                    Ready to Spin, {currentUser.name}?
                   </h3>
                   <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                    Spin the wheel to win authentic designer boutique apparel, Banarasi dupattas, Kundan sets, or instant cash vouchers!
+                    Your 1 guaranteed reward spin is ready. Tap the button below to roll the fortune wheel!
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-left pt-1">
                   <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200">
                     <span className="text-base">👗</span>
-                    <h5 className="font-bold text-xs text-stone-900 mt-0.5">Designer Gifts</h5>
+                    <h5 className="font-bold text-xs text-stone-900 mt-0.5">Designer Outfits</h5>
                     <p className="text-[10px] text-stone-500">Banarasi Dupattas & Kurtis</p>
                   </div>
                   <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200">
@@ -439,15 +749,17 @@ export const SpinWheelModal = ({
                 <button
                   type="button"
                   onClick={handleSpinWheel}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-gold-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-brand-950 font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 border border-amber-300"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-gold-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-brand-950 font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 border border-amber-300 animate-pulse"
                 >
-                  <Sparkles size={18} />
-                  <span>Spin the Wheel Now</span>
+                  <Crown size={18} />
+                  <span>Tap to Spin the Wheel Now</span>
                 </button>
               </div>
             )}
 
-            {/* STATE 2: SPINNING ANIMATION */}
+            {/* ------------------------------------------------------------- */}
+            {/* VIEW 3: SPINNING ANIMATION                                    */}
+            {/* ------------------------------------------------------------- */}
             {isSpinning && (
               <div className="p-8 bg-white rounded-3xl border border-amber-300 text-center space-y-4 shadow-md animate-pulse">
                 <div className="w-16 h-16 rounded-full bg-amber-100 border-2 border-amber-400 flex items-center justify-center mx-auto text-3xl">
@@ -457,12 +769,14 @@ export const SpinWheelModal = ({
                   Rolling Fortune Wheel...
                 </h3>
                 <p className="text-xs text-stone-600">
-                  Selecting your lucky surprise boutique reward. Please wait while the wheel decelerates!
+                  Selecting your lucky surprise boutique reward for {currentUser?.name || 'you'}. Please wait while the wheel decelerates!
                 </p>
               </div>
             )}
 
-            {/* STATE 3: WON PRIZE BANNER & CLAIM FORM */}
+            {/* ------------------------------------------------------------- */}
+            {/* VIEW 4: WON PRIZE / ALREADY SPUN CLAIM CARD                   */}
+            {/* ------------------------------------------------------------- */}
             {showWinClaim && wonPrize && (
               <div className="space-y-3 animate-fadeIn">
                 
@@ -510,14 +824,21 @@ export const SpinWheelModal = ({
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-black text-amber-900 bg-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block border border-amber-300">
-                        🎉 You Won!
-                      </span>
-                      <h3 className="font-serif text-sm sm:text-base font-bold text-brand-950 mt-0.5 line-clamp-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-black text-amber-900 bg-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block border border-amber-300">
+                          🎉 You Won!
+                        </span>
+                        {wonPrize.minOrderAmount > 0 && (
+                          <span className="text-[9px] font-extrabold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                            Min. Order ₹{wonPrize.minOrderAmount.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-serif text-sm sm:text-base font-bold text-brand-950 mt-1 line-clamp-1">
                         {wonPrize.label}
                       </h3>
                       <p className="text-xs font-black text-amber-800">
-                        Value: {wonPrize.worth} • {wonPrize.subtext || "Exclusive Reward"}
+                        Value: {wonPrize.worth} • {wonPrize.subtext || `Applies on ₹${(wonPrize.minOrderAmount || 1499).toLocaleString('en-IN')}+`}
                       </p>
                     </div>
                   </div>
@@ -544,155 +865,8 @@ export const SpinWheelModal = ({
                   </div>
                 </div>
 
-                {/* USER AUTH & CLAIM FLOW */}
-                {!currentUser ? (
-                  /* IF NOT LOGGED IN: CUSTOMER REGISTRATION / LOGIN CARD */
-                  <div className="bg-white rounded-3xl p-4 border border-amber-200 text-stone-900 space-y-2.5 shadow-md">
-                    
-                    <div className="text-center space-y-0.5">
-                      <h4 className="font-heading text-sm font-bold text-brand-950 flex items-center justify-center gap-1.5">
-                        <Lock size={15} className="text-amber-600" />
-                        <span>Save & Link Reward to Account</span>
-                      </h4>
-                      <p className="text-[10px] text-stone-500">
-                        Create your permanent login ID & password to claim within 15 minutes!
-                      </p>
-                    </div>
-
-                    {/* Tab Switcher */}
-                    <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200 text-xs font-bold">
-                      <button
-                        type="button"
-                        onClick={() => setAuthTab('register')}
-                        className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 text-[11px] ${
-                          authTab === 'register'
-                            ? 'bg-amber-400 text-brand-950 shadow-sm font-black'
-                            : 'text-stone-600 hover:text-stone-900'
-                        }`}
-                      >
-                        <Sparkles size={12} />
-                        <span>New Customer</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setAuthTab('login')}
-                        className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 text-[11px] ${
-                          authTab === 'login'
-                            ? 'bg-amber-400 text-brand-950 shadow-sm font-black'
-                            : 'text-stone-600 hover:text-stone-900'
-                        }`}
-                      >
-                        <Lock size={12} />
-                        <span>Existing Login</span>
-                      </button>
-                    </div>
-
-                    {authError && (
-                      <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
-                        <AlertCircle size={14} className="shrink-0" />
-                        <span>{authError}</span>
-                      </div>
-                    )}
-
-                    {authSuccessMsg && (
-                      <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[11px] font-bold flex items-center gap-1.5">
-                        <Check size={14} className="shrink-0" />
-                        <span>{authSuccessMsg}</span>
-                      </div>
-                    )}
-
-                    <form onSubmit={handleAuthSubmit} className="space-y-2 text-xs">
-                      {authTab === 'register' && (
-                        <div>
-                          <label className="block font-bold text-stone-700 uppercase tracking-wider text-[9px] mb-0.5">
-                            Full Name <span className="text-rose-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              required
-                              placeholder="e.g. Radhika Sharma"
-                              value={authFormData.name}
-                              onChange={(e) => setAuthFormData({ ...authFormData, name: e.target.value })}
-                              className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white text-xs"
-                            />
-                            <User size={13} className="absolute left-2.5 top-2.5 text-stone-400" />
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block font-bold text-stone-700 uppercase tracking-wider text-[9px] mb-0.5">
-                            Mobile No (Your ID) <span className="text-rose-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="tel"
-                              required
-                              maxLength={10}
-                              placeholder="10-digit mobile"
-                              value={authFormData.phone}
-                              onChange={(e) => setAuthFormData({ ...authFormData, phone: e.target.value })}
-                              className="w-full pl-8 pr-2 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white font-mono text-xs"
-                            />
-                            <Phone size={13} className="absolute left-2.5 top-2.5 text-stone-400" />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-stone-700 uppercase tracking-wider text-[9px] mb-0.5">
-                            {authTab === 'register' ? 'Set Password' : 'Password'} <span className="text-rose-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showPassword ? 'text' : 'password'}
-                              required
-                              placeholder="Password"
-                              value={authFormData.password}
-                              onChange={(e) => setAuthFormData({ ...authFormData, password: e.target.value })}
-                              className="w-full pl-8 pr-7 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white text-xs"
-                            />
-                            <KeyRound size={13} className="absolute left-2.5 top-2.5 text-stone-400" />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-2 top-2.5 text-stone-400 hover:text-stone-700 cursor-pointer"
-                            >
-                              {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {authTab === 'register' && (
-                        <div>
-                          <label className="block font-bold text-stone-700 uppercase tracking-wider text-[9px] mb-0.5">
-                            City & State
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Jaipur, Rajasthan"
-                            value={authFormData.city}
-                            onChange={(e) => setAuthFormData({ ...authFormData, city: e.target.value })}
-                            className="w-full px-3 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-500 focus:bg-white text-xs"
-                          />
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-brand-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 mt-1 border border-amber-300"
-                      >
-                        <ShieldCheck size={14} />
-                        <span>{authTab === 'register' ? 'Save & Claim Prize to Account' : 'Login & Claim Prize'}</span>
-                      </button>
-                    </form>
-
-                  </div>
-                ) : (
-                  /* IF ALREADY LOGGED IN: SHOW CLAIMED DETAILS & ACTION BUTTONS */
+                {/* Account Linked Details & Action Buttons */}
+                {currentUser && (
                   <div className="bg-white rounded-3xl p-4 border border-emerald-300 text-stone-900 space-y-3 shadow-md">
                     <div className="flex items-center justify-between pb-2 border-b border-stone-100">
                       <div className="flex items-center gap-2">
@@ -700,19 +874,26 @@ export const SpinWheelModal = ({
                           ✓
                         </div>
                         <div>
-                          <span className="text-[9px] text-emerald-700 font-bold block">Saved to Profile:</span>
-                          <strong className="text-xs text-stone-900">{currentUser.name} ({currentUser.phone})</strong>
+                          <span className="text-[9px] text-emerald-700 font-bold block">Reward Linked to Account:</span>
+                          <strong className="text-xs text-stone-900">{currentUser.name} (+91 {currentUser.phone})</strong>
                         </div>
                       </div>
 
-                      <span className="font-mono text-[11px] font-bold text-brand-950 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-300">
-                        {currentUser.ticketNumber}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSwitchAccount}
+                        className="text-[10px] text-stone-500 hover:text-stone-800 font-bold hover:underline cursor-pointer"
+                      >
+                        Switch Number
+                      </button>
                     </div>
 
-                    <p className="text-xs text-stone-600 leading-relaxed">
-                      Your reward is saved! Use coupon code <strong className="text-amber-800">{wonPrize.couponCode}</strong> at checkout or message us directly on WhatsApp to claim your gift.
-                    </p>
+                    <div className="p-2.5 bg-stone-50 rounded-xl text-[11px] text-stone-600 border border-stone-200 flex items-center gap-2">
+                      <span className="text-amber-600 text-base">🔒</span>
+                      <span>
+                        <strong>1 Spin Limit Active:</strong> Each verified customer account receives 1 guaranteed reward.
+                      </span>
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                       <button
@@ -722,7 +903,7 @@ export const SpinWheelModal = ({
                           onClose();
                           if (onOpenStoreCatalog) onOpenStoreCatalog();
                         }}
-                        className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 text-brand-950 font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 border border-amber-300"
+                        className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-brand-950 font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 border border-amber-300"
                       >
                         <ShoppingBag size={14} />
                         <span>Apply & Shop Catalog</span>
@@ -730,7 +911,7 @@ export const SpinWheelModal = ({
 
                       <a
                         href={`https://wa.me/91${config.whatsappNumber || '918233631768'}?text=${encodeURIComponent(
-                          `Namaste! I just won *${wonPrize.label}* (Value: ${wonPrize.worth}) on the Spin Wheel!\n\nMy Account: ${currentUser.name} (${currentUser.phone})\nGolden Ticket: ${currentUser.ticketNumber}\nCoupon Code: ${wonPrize.couponCode}\n\nPlease help me apply this to my order within 15 minutes!`
+                          `Namaste! I just won *${wonPrize.label}* (Value: ${wonPrize.worth}) on the VIP Spin Wheel!\n\nMy Account: ${currentUser.name} (+91 ${currentUser.phone})\nCoupon Code: ${wonPrize.couponCode}\n\nPlease help me apply this to my order within 15 minutes!`
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"

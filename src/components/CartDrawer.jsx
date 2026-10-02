@@ -25,6 +25,7 @@ import {
 import confetti from 'canvas-confetti';
 import { normalizeImageUrl } from '../utils/imageUrl';
 import { getLuckyDrawConfig, getCustomerAuthSession } from '../utils/luckyDraw';
+import { resolvePromoDetails } from '../utils/promoResolver';
 
 export const CartDrawer = ({ 
   isOpen, 
@@ -128,20 +129,10 @@ export const CartDrawer = ({
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   
-  // 1. Calculate Coupon Discount based on active promo code
-  let couponDiscount = 0;
-  if (appliedPromo) {
-    const coupon = coupons.find(c => c.code.toUpperCase() === appliedPromo.toUpperCase());
-    if (coupon) {
-      if (coupon.discountType === 'percentage') {
-        couponDiscount = Math.round((subtotal * coupon.discountValue) / 100);
-      } else {
-        couponDiscount = Math.min(subtotal, coupon.discountValue);
-      }
-    } else if (appliedPromo === 'ROYAL10' || appliedPromo === 'FESTIVE10') {
-      couponDiscount = Math.round(subtotal * 0.10);
-    }
-  }
+  // 1. Resolve Active Promo Code & Minimum Order Threshold (Amazon / Flipkart Style)
+  const promoDetails = resolvePromoDetails(appliedPromo, coupons, subtotal);
+  const couponDiscount = promoDetails?.discountAmount || 0;
+  const freeGift = (promoDetails?.isEligible && promoDetails?.freeGiftTitle) ? promoDetails.freeGiftTitle : null;
 
   // 2. Calculate Flash Countdown Rush Discount
   let timerDiscount = 0;
@@ -185,26 +176,25 @@ export const CartDrawer = ({
   };
 
   const handleApplyCouponCode = (code) => {
-    const cleanCode = code.trim().toUpperCase();
-    const coupon = coupons.find(c => c.code.toUpperCase() === cleanCode);
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode) return;
 
-    if (coupon) {
-      if (subtotal < coupon.minOrderAmount) {
-        setPromoError(`Requires minimum order of ₹${coupon.minOrderAmount.toLocaleString('en-IN')}`);
-        setPromoSuccessMsg('');
-        return;
+    const resolved = resolvePromoDetails(cleanCode, coupons, subtotal);
+    if (resolved) {
+      setAppliedPromo(cleanCode);
+      setPromoError('');
+      if (resolved.isEligible) {
+        if (resolved.discountType === 'gift') {
+          setPromoSuccessMsg(`🎉 Free Gift "${resolved.freeGiftTitle}" unlocked successfully!`);
+        } else {
+          setPromoSuccessMsg(`🎉 Reward "${cleanCode}" unlocked! -₹${resolved.discountAmount.toLocaleString('en-IN')} OFF`);
+        }
+        triggerConfetti();
+      } else {
+        setPromoSuccessMsg(`🎉 Code "${cleanCode}" added! Add ₹${resolved.shortAmount.toLocaleString('en-IN')} more to qualify.`);
       }
-      setAppliedPromo(cleanCode);
-      setPromoError('');
-      setPromoSuccessMsg(`🎉 Coupon "${cleanCode}" applied successfully!`);
-      triggerConfetti();
-    } else if (cleanCode === 'ROYAL10' || cleanCode === 'FESTIVE10') {
-      setAppliedPromo(cleanCode);
-      setPromoError('');
-      setPromoSuccessMsg(`🎉 Coupon "${cleanCode}" applied for 10% OFF!`);
-      triggerConfetti();
     } else {
-      setPromoError('Invalid coupon code. Try ROYAL10 or select a coupon below.');
+      setPromoError('Invalid coupon code. Try ROYAL10, ROYAL300, or choose from available offers below.');
       setPromoSuccessMsg('');
     }
   };
@@ -291,50 +281,64 @@ export const CartDrawer = ({
                 </div>
 
                 {/* Lucky Draw Grand Giveaway Showcase in Empty Cart */}
-                <div className="p-4 bg-gradient-to-br from-amber-50 via-gold-50/60 to-amber-100/70 rounded-3xl border-2 border-amber-300 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-xl bg-amber-200 text-amber-950 flex items-center justify-center font-black text-xs">
-                        🎁
-                      </div>
-                      <div>
-                        <h4 className="font-heading text-xs font-black text-amber-950 uppercase tracking-wider">
-                          Festive Mega Lucky Draw
-                        </h4>
-                        <span className="text-[10px] text-amber-900/80 font-bold block">
-                          Order min 3 items to qualify
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-extrabold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-full border border-amber-300">
-                      3 Items to Enter
-                    </span>
-                  </div>
+                {(() => {
+                  const luckyConfig = getLuckyDrawConfig();
+                  const isAmountType = luckyConfig.eligibilityType !== 'count';
+                  const minDrawAmount = Number(luckyConfig.minOrderAmount || 10000);
+                  const minDrawItems = Number(luckyConfig.minProductsRequired || 3);
+                  const mainPrize = luckyConfig.prizes?.[0] || DEFAULT_LUCKY_DRAW_CONFIG.prizes[0];
 
-                  {/* Grand Prize Preview Card */}
-                  <div className="bg-white p-3 rounded-2xl border border-amber-200/80">
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-20 rounded-xl overflow-hidden border border-amber-300 bg-stone-50 shrink-0">
-                        <img
-                          src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=600&q=80"
-                          alt="Heritage Pure Katan Banarasi Silk Saree"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[9px] font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md uppercase">
-                          Grand Prize (Worth ₹4,999)
+                  return (
+                    <div className="p-4 bg-gradient-to-br from-amber-50 via-gold-50/60 to-amber-100/70 rounded-3xl border-2 border-amber-300 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-xl bg-amber-200 text-amber-950 flex items-center justify-center font-black text-xs">
+                            🎁
+                          </div>
+                          <div>
+                            <h4 className="font-heading text-xs font-black text-amber-950 uppercase tracking-wider">
+                              {luckyConfig.title || "Festive Mega Lucky Draw"}
+                            </h4>
+                            <span className="text-[10px] text-amber-900/80 font-bold block">
+                              {isAmountType ? `Order min ₹${minDrawAmount.toLocaleString('en-IN')} to qualify` : `Order min ${minDrawItems} items to qualify`}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-extrabold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-full border border-amber-300">
+                          {isAmountType ? `Min ₹${minDrawAmount.toLocaleString('en-IN')}` : `${minDrawItems} Items to Enter`}
                         </span>
-                        <h5 className="font-heading text-xs font-bold text-stone-900 mt-0.5 line-clamp-1">
-                          Heritage Pure Katan Banarasi Silk Saree
-                        </h5>
-                        <p className="text-[10px] text-stone-500 line-clamp-2 mt-0.5">
-                          Handcrafted pure zari silk saree with designer blouse piece free for lucky winner.
-                        </p>
+                      </div>
+
+                      {/* Grand Prize Preview Card */}
+                      <div className="bg-white p-3 rounded-2xl border border-amber-200/80">
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-20 rounded-xl overflow-hidden border border-amber-300 bg-stone-50 shrink-0">
+                            <img
+                              src={normalizeImageUrl(mainPrize.image)}
+                              alt={mainPrize.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=600&q=80";
+                              }}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[9px] font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md uppercase">
+                              Grand Prize ({mainPrize.worth || '₹4,999'})
+                            </span>
+                            <h5 className="font-heading text-xs font-bold text-stone-900 mt-0.5 line-clamp-1">
+                              {mainPrize.title}
+                            </h5>
+                            <p className="text-[10px] text-stone-500 line-clamp-2 mt-0.5">
+                              {mainPrize.description || "Handcrafted pure luxury ensemble free for lucky winner."}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             ) : (
               <>
@@ -456,9 +460,19 @@ export const CartDrawer = ({
                 {(() => {
                   const totalItemCount = cartItems.reduce((acc, c) => acc + c.quantity, 0);
                   const luckyConfig = getLuckyDrawConfig();
-                  const minDrawItems = luckyConfig.minProductsRequired || 3;
-                  const isDrawEligible = totalItemCount >= minDrawItems;
+                  const isAmountType = luckyConfig.eligibilityType !== 'count';
+                  const minDrawAmount = Number(luckyConfig.minOrderAmount || 10000);
+                  const minDrawItems = Number(luckyConfig.minProductsRequired || 3);
+                  
+                  const isDrawEligible = isAmountType ? subtotal >= minDrawAmount : totalItemCount >= minDrawItems;
+                  const remainingAmount = Math.max(0, minDrawAmount - subtotal);
+                  const remainingItems = Math.max(0, minDrawItems - totalItemCount);
+                  const progressPercent = isAmountType
+                    ? Math.min(100, Math.round((subtotal / minDrawAmount) * 100))
+                    : Math.min(100, Math.round((totalItemCount / minDrawItems) * 100));
+
                   const luckyUser = getCustomerAuthSession();
+                  const mainPrize = luckyConfig.prizes?.[0] || DEFAULT_LUCKY_DRAW_CONFIG.prizes[0];
 
                   return (
                     <div className="p-3.5 bg-gradient-to-br from-amber-50 via-gold-50/60 to-amber-100/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
@@ -467,7 +481,7 @@ export const CartDrawer = ({
                           <div className="w-6 h-6 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center font-black text-xs">
                             🎁
                           </div>
-                          <span>Festive Lucky Draw Contest</span>
+                          <span>{luckyConfig.title || "Festive Lucky Draw Contest"}</span>
                         </div>
                         {isDrawEligible ? (
                           <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
@@ -476,7 +490,7 @@ export const CartDrawer = ({
                           </span>
                         ) : (
                           <span className="text-[10px] font-black text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-full border border-amber-300/80">
-                            ⏳ Need {minDrawItems - totalItemCount} more
+                            {isAmountType ? `⏳ Need ₹${remainingAmount.toLocaleString('en-IN')} more` : `⏳ Need ${remainingItems} more`}
                           </span>
                         )}
                       </div>
@@ -484,9 +498,13 @@ export const CartDrawer = ({
                       {/* Progress Bar */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-[11px] font-bold text-stone-700">
-                          <span>{totalItemCount} / {minDrawItems} Products in Bag</span>
+                          <span>
+                            {isAmountType 
+                              ? `₹${subtotal.toLocaleString('en-IN')} / ₹${minDrawAmount.toLocaleString('en-IN')} in Bag` 
+                              : `${totalItemCount} / ${minDrawItems} Products in Bag`}
+                          </span>
                           <span className="text-amber-900 font-extrabold">
-                            {isDrawEligible ? '🎉 Golden Ticket Activated!' : `${Math.round((totalItemCount / minDrawItems) * 100)}% Complete`}
+                            {isDrawEligible ? '🎉 Golden Ticket Activated!' : `${progressPercent}% Complete`}
                           </span>
                         </div>
 
@@ -495,7 +513,7 @@ export const CartDrawer = ({
                             className={`h-full rounded-full transition-all duration-500 ${
                               isDrawEligible ? 'bg-emerald-600' : 'bg-gradient-to-r from-amber-400 to-amber-500'
                             }`}
-                            style={{ width: `${Math.min(100, (totalItemCount / minDrawItems) * 100)}%` }}
+                            style={{ width: `${progressPercent}%` }}
                           />
                         </div>
                       </div>
@@ -503,12 +521,16 @@ export const CartDrawer = ({
                       {/* Grand Prize Preview */}
                       <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-amber-200 text-xs gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          {luckyConfig.prizes?.[0]?.image ? (
+                          {mainPrize.image ? (
                             <div className="w-10 h-10 rounded-lg overflow-hidden border border-amber-300 shrink-0 bg-stone-100 shadow-2xs">
                               <img 
-                                src={normalizeImageUrl(luckyConfig.prizes[0].image)} 
-                                alt="Prize" 
+                                src={normalizeImageUrl(mainPrize.image)} 
+                                alt={mainPrize.title} 
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80";
+                                }}
                               />
                             </div>
                           ) : (
@@ -520,8 +542,8 @@ export const CartDrawer = ({
                             </span>
                             <strong className="text-stone-900 text-xs font-bold truncate block">
                               {isDrawEligible 
-                                ? (luckyUser ? `Ticket #${luckyUser.ticketNumber} Qualifies for ${luckyConfig.prizes?.[0]?.title || 'Banarasi Saree'}` : (luckyConfig.prizes?.[0]?.title || 'Heritage Pure Banarasi Silk Saree'))
-                                : (luckyConfig.prizes?.[0]?.title ? `${luckyConfig.prizes[0].title} (${luckyConfig.prizes[0].worth || '₹4,999'})` : 'Pure Katan Banarasi Saree (Worth ₹4,999)')}
+                                ? (luckyUser ? `Ticket #${luckyUser.ticketNumber} Qualifies for ${mainPrize.title}` : mainPrize.title)
+                                : `${mainPrize.title} (${mainPrize.worth || '₹4,999'})`}
                             </strong>
                           </div>
                         </div>
@@ -607,49 +629,119 @@ export const CartDrawer = ({
                   ))}
                 </div>
 
-                {/* 4. COUPON & PROMO CODE SECTION */}
+                {/* 4. COUPON & PROMO CODE SECTION - AMAZON STYLE THRESHOLD SYSTEM */}
                 <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-2.5">
                   <div className="flex items-center justify-between text-xs font-bold text-amber-950">
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1.5">
                       <Tag size={13} className="text-amber-700" />
-                      <span>Apply Luxury Promo Code</span>
+                      <span>Luxury Rewards & Promo Code</span>
                     </span>
                     {appliedPromo && (
                       <button
                         type="button"
                         onClick={handleRemovePromo}
-                        className="text-[11px] text-rose-700 hover:underline font-bold"
+                        className="text-[11px] text-rose-700 hover:underline font-bold cursor-pointer"
                       >
                         Remove
                       </button>
                     )}
                   </div>
 
-                  {/* Promo Input */}
+                  {/* Promo Input Box (if no promo applied) */}
                   {!appliedPromo ? (
                     <form onSubmit={handleApplyPromoForm} className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="Enter coupon (e.g. ROYAL10)"
+                        placeholder="Enter code (e.g. ROYAL300, ROYAL10)"
                         value={promoInput}
                         onChange={(e) => setPromoInput(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-amber-600 text-stone-900"
+                        className="flex-1 px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-amber-600 text-stone-900 shadow-2xs"
                       />
                       <button
                         type="submit"
-                        className="px-4 py-2 royal-maroon-bg text-gold-100 font-bold text-xs rounded-xl hover:opacity-95 transition-all cursor-pointer"
+                        className="px-4 py-2 royal-maroon-bg text-gold-100 font-bold text-xs rounded-xl hover:opacity-95 transition-all cursor-pointer shadow-xs"
                       >
                         Apply
                       </button>
                     </form>
                   ) : (
-                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-800 font-bold">
-                      <span className="flex items-center gap-1.5">
-                        <Sparkles size={14} className="text-emerald-600" />
-                        <span>Code <strong>{appliedPromo}</strong> Applied (-₹{couponDiscount.toLocaleString('en-IN')})</span>
-                      </span>
-                      <Check size={16} className="text-emerald-600" />
-                    </div>
+                    /* Applied Promo Status: Eligible (Unlocked) OR Below Threshold (Amazon-Style Progress Bar) */
+                    promoDetails?.isEligible ? (
+                      <div className="p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100/80 border-2 border-emerald-400 rounded-2xl flex items-center justify-between text-emerald-950 shadow-xs animate-fadeIn">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                            {promoDetails.discountType === 'gift' ? '🎁' : '✓'}
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">
+                              🎉 Reward Unlocked!
+                            </span>
+                            <strong className="text-xs text-stone-950 block">
+                              {promoDetails.discountType === 'gift' 
+                                ? `Free ${promoDetails.freeGiftTitle}` 
+                                : `Code ${promoDetails.code} (-₹${couponDiscount.toLocaleString('en-IN')})`}
+                            </strong>
+                            <p className="text-[10px] text-emerald-700 font-medium">
+                              {promoDetails.description || `Qualified on orders above ₹${promoDetails.minOrderAmount.toLocaleString('en-IN')}`}
+                            </p>
+                          </div>
+                        </div>
+                        <Check size={18} className="text-emerald-600 shrink-0 mr-1" />
+                      </div>
+                    ) : (
+                      /* Below Threshold: Amazon-Style Staged Reward Meter */
+                      <div className="p-3.5 bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/70 border-2 border-amber-300 rounded-2xl space-y-2 shadow-xs animate-fadeIn">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-amber-200 text-amber-950 flex items-center justify-center font-black text-xs shrink-0">
+                              ⏳
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
+                                Reward Staged: {promoDetails?.code || appliedPromo}
+                              </span>
+                              <strong className="text-xs text-amber-950 block">
+                                Add ₹{promoDetails?.shortAmount?.toLocaleString('en-IN')} more to unlock!
+                              </strong>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-extrabold bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded-full border border-amber-300">
+                            Min. ₹{promoDetails?.minOrderAmount?.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-stone-600">
+                            <span>Bag Subtotal: ₹{subtotal.toLocaleString('en-IN')}</span>
+                            <span className="text-amber-900 font-extrabold">
+                              Target: ₹{promoDetails?.minOrderAmount?.toLocaleString('en-IN')} ({promoDetails?.progressPercent || 0}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-2.5 bg-white rounded-full overflow-hidden border border-amber-300 shadow-inner">
+                            <div 
+                              className="h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full transition-all duration-500"
+                              style={{ width: `${promoDetails?.progressPercent || 0}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-0.5 text-[10px]">
+                          <p className="text-amber-900/90 font-medium">
+                            {promoDetails?.discountType === 'gift' 
+                              ? `🎁 Unlocks Free ${promoDetails.freeGiftTitle}`
+                              : `🏷️ Unlocks ${promoDetails?.description || 'Instant Discount'}`}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold text-[10px] rounded-lg border border-amber-300 cursor-pointer shadow-2xs"
+                          >
+                            + Add Items
+                          </button>
+                        </div>
+                      </div>
+                    )
                   )}
 
                   {promoError && (
@@ -659,22 +751,58 @@ export const CartDrawer = ({
                     <p className="text-[11px] text-emerald-700 font-bold">{promoSuccessMsg}</p>
                   )}
 
-                  {/* Clickable Quick Coupon Chips */}
-                  {!appliedPromo && coupons.length > 0 && (
-                    <div className="pt-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1.5">Available Offers:</p>
+                  {/* Clickable Available Offers Chips with Threshold Indicators */}
+                  {!appliedPromo && (
+                    <div className="pt-1 space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        Available Boutique Offers & Rewards:
+                      </p>
                       <div className="flex gap-1.5 flex-wrap">
-                        {coupons.filter(c => c.isActive).map((coup) => (
-                          <button
-                            key={coup.code}
-                            type="button"
-                            onClick={() => handleApplyCouponCode(coup.code)}
-                            className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 flex items-center gap-1 transition-all cursor-pointer"
-                          >
-                            <span>🏷️ {coup.code}</span>
-                            <span className="text-stone-400">({coup.discountType === 'percentage' ? `${coup.discountValue}% OFF` : `₹${coup.discountValue} OFF`})</span>
-                          </button>
-                        ))}
+                        {(() => {
+                          const baseCoupons = [
+                            { code: 'ROYAL300', label: 'Flat ₹300 OFF', min: 1499 },
+                            { code: 'SPIN500', label: 'Flat ₹500 OFF', min: 1999 },
+                            { code: 'FREEDUPATTA', label: 'Free Silk Dupatta', min: 2999 },
+                            { code: 'ROYAL10', label: '10% OFF', min: 999 },
+                            { code: 'FESTIVE20', label: '20% OFF', min: 1999 },
+                            { code: 'FIRSTBUY', label: '₹200 OFF', min: 1299 }
+                          ];
+                          
+                          // Merge with custom admin coupons
+                          const allOffers = [...(coupons || []).filter(c => c.isActive).map(c => ({
+                            code: c.code,
+                            label: c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`,
+                            min: c.minOrderAmount || 0
+                          }))];
+
+                          baseCoupons.forEach(bc => {
+                            if (!allOffers.some(o => o.code.toUpperCase() === bc.code.toUpperCase())) {
+                              allOffers.push(bc);
+                            }
+                          });
+
+                          return allOffers.map((coup) => {
+                            const isMet = subtotal >= (coup.min || 0);
+                            return (
+                              <button
+                                key={coup.code}
+                                type="button"
+                                onClick={() => handleApplyCouponCode(coup.code)}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                  isMet 
+                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:bg-emerald-100'
+                                    : 'bg-white border-amber-300 text-amber-900 hover:bg-amber-100'
+                                }`}
+                              >
+                                <span>🏷️ {coup.code}</span>
+                                <span className={isMet ? 'text-emerald-700' : 'text-stone-500'}>
+                                  ({coup.label} • Min. ₹{coup.min?.toLocaleString('en-IN')})
+                                </span>
+                                {isMet && <span className="text-[9px] text-emerald-700 bg-emerald-200/80 px-1 rounded-sm">✓ Ready</span>}
+                              </button>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   )}
@@ -732,6 +860,16 @@ export const CartDrawer = ({
                   </div>
                 )}
 
+                {/* Free Gift Line (if qualified) */}
+                {freeGift && (
+                  <div className="flex justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                    <span className="flex items-center gap-1">
+                      <span>🎁 Unlocked Free Gift: {freeGift}</span>
+                    </span>
+                    <span className="text-emerald-700 font-black">FREE (₹0)</span>
+                  </div>
+                )}
+
                 {/* Coupon Discount Line */}
                 {couponDiscount > 0 && (
                   <div className="flex justify-between text-emerald-800 font-bold">
@@ -777,6 +915,8 @@ export const CartDrawer = ({
                     couponDiscount,
                     timerDiscount,
                     appliedPromo,
+                    freeGift,
+                    promoDetails,
                     giftWrapFee,
                     shippingFee,
                     grandTotal

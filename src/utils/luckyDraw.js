@@ -10,10 +10,12 @@ const LUCKY_DRAW_AUTH_KEY = 'aura_kurti_lucky_draw_auth_session_v2';
 export const DEFAULT_LUCKY_DRAW_CONFIG = {
   isActive: true,
   title: "Festive Mega Royal Lucky Draw 🎁",
-  tagline: "Order minimum 3 Boutique Apparel Items to Enter the Mega Giveaway!",
+  tagline: "Order for minimum ₹10,000 to Enter the Mega Royal Giveaway!",
+  minOrderAmount: 10000,
   minProductsRequired: 3,
+  eligibilityType: "amount", // 'amount' (default: min ₹10,000) | 'count' (min X products)
   announcementDate: "2026-11-15",
-  terms: "1. Customer must order a minimum of 3 apparel products.\n2. Free express doorstep delivery for the chosen prize item.\n3. Winner will be chosen via fair transparent draw and contacted directly on WhatsApp.\n4. Admin reserves the right to verify genuine order dispatch.",
+  terms: "1. Customer must place an order of minimum ₹10,000 to qualify for the Grand Draw.\n2. Free express doorstep delivery for the chosen prize item.\n3. Winner will be chosen via fair transparent draw and contacted directly on WhatsApp.\n4. Admin reserves the right to verify genuine order dispatch.",
   prizes: [
     {
       id: 'pz-1',
@@ -51,7 +53,13 @@ export const getLuckyDrawConfig = () => {
       const prizes = Array.isArray(parsed?.prizes) && parsed.prizes.length > 0
         ? parsed.prizes
         : DEFAULT_LUCKY_DRAW_CONFIG.prizes;
-      return { ...DEFAULT_LUCKY_DRAW_CONFIG, ...parsed, prizes };
+      return { 
+        ...DEFAULT_LUCKY_DRAW_CONFIG, 
+        ...parsed, 
+        minOrderAmount: Number(parsed.minOrderAmount || DEFAULT_LUCKY_DRAW_CONFIG.minOrderAmount),
+        eligibilityType: parsed.eligibilityType || 'amount',
+        prizes 
+      };
     }
   } catch (e) {
     console.error("Failed to load lucky draw config", e);
@@ -78,7 +86,13 @@ export const fetchCloudLuckyDrawConfig = async () => {
       const prizes = Array.isArray(cloudConfig?.prizes) && cloudConfig.prizes.length > 0
         ? cloudConfig.prizes
         : DEFAULT_LUCKY_DRAW_CONFIG.prizes;
-      const merged = { ...DEFAULT_LUCKY_DRAW_CONFIG, ...cloudConfig, prizes };
+      const merged = { 
+        ...DEFAULT_LUCKY_DRAW_CONFIG, 
+        ...cloudConfig, 
+        minOrderAmount: Number(cloudConfig.minOrderAmount || DEFAULT_LUCKY_DRAW_CONFIG.minOrderAmount),
+        eligibilityType: cloudConfig.eligibilityType || 'amount',
+        prizes 
+      };
       
       try {
         localStorage.setItem(LUCKY_DRAW_CONFIG_KEY, JSON.stringify(merged));
@@ -100,6 +114,8 @@ export const saveLuckyDrawConfig = async (config) => {
   const safeConfig = {
     ...DEFAULT_LUCKY_DRAW_CONFIG,
     ...config,
+    minOrderAmount: Number(config?.minOrderAmount || DEFAULT_LUCKY_DRAW_CONFIG.minOrderAmount),
+    eligibilityType: config?.eligibilityType || 'amount',
     prizes: Array.isArray(config?.prizes) && config.prizes.length > 0 ? config.prizes : DEFAULT_LUCKY_DRAW_CONFIG.prizes
   };
 
@@ -323,11 +339,38 @@ export const logoutLuckyDrawUser = () => {
 };
 
 /**
- * Calculate user's ordered products count to verify 3-item eligibility
+ * Calculate user's ordered products/amount to verify eligibility
+ * Supports both minOrderAmount (e.g. ₹10,000) and minProductsRequired (e.g. 3)
  */
-export const getUserDrawEligibility = (userPhone, minRequired = 3) => {
+export const getUserDrawEligibility = (userPhone, customConfigOrReq = null) => {
+  let luckyConfig;
+  if (typeof customConfigOrReq === 'object' && customConfigOrReq !== null) {
+    luckyConfig = { ...getLuckyDrawConfig(), ...customConfigOrReq };
+  } else if (typeof customConfigOrReq === 'number') {
+    luckyConfig = { ...getLuckyDrawConfig(), minProductsRequired: customConfigOrReq };
+  } else {
+    luckyConfig = getLuckyDrawConfig();
+  }
+
+  const minOrderAmount = Number(luckyConfig.minOrderAmount || 10000);
+  const minProductsRequired = Number(luckyConfig.minProductsRequired || 3);
+  const eligibilityType = luckyConfig.eligibilityType || 'amount'; // 'amount' | 'count'
+
   const cleanPhone = normalizePhone(userPhone);
-  if (!cleanPhone) return { count: 0, isEligible: false, minRequired };
+  if (!cleanPhone) {
+    return { 
+      count: 0, 
+      totalSpent: 0,
+      isEligible: false, 
+      minOrderAmount,
+      minProductsRequired,
+      eligibilityType,
+      remainingAmountToUnlock: minOrderAmount,
+      remainingItemsToUnlock: minProductsRequired,
+      remainingToUnlock: eligibilityType === 'amount' ? minOrderAmount : minProductsRequired,
+      ordersCount: 0
+    };
+  }
 
   const allOrders = getStoredOrders();
   const matchingOrders = allOrders.filter(o => {
@@ -336,7 +379,10 @@ export const getUserDrawEligibility = (userPhone, minRequired = 3) => {
   });
 
   let totalItemsOrdered = 0;
+  let totalAmountOrdered = 0;
+
   matchingOrders.forEach(o => {
+    totalAmountOrdered += Number(o.totalAmount || o.grandTotal || 0);
     if (Array.isArray(o.items)) {
       o.items.forEach(it => {
         totalItemsOrdered += Number(it.quantity || 1);
@@ -346,11 +392,23 @@ export const getUserDrawEligibility = (userPhone, minRequired = 3) => {
     }
   });
 
+  const isEligible = eligibilityType === 'amount'
+    ? totalAmountOrdered >= minOrderAmount
+    : totalItemsOrdered >= minProductsRequired;
+
+  const remainingAmount = Math.max(0, minOrderAmount - totalAmountOrdered);
+  const remainingItems = Math.max(0, minProductsRequired - totalItemsOrdered);
+
   return {
     count: totalItemsOrdered,
-    isEligible: totalItemsOrdered >= minRequired,
-    minRequired,
+    totalSpent: totalAmountOrdered,
+    isEligible,
+    minOrderAmount,
+    minProductsRequired,
+    eligibilityType,
     ordersCount: matchingOrders.length,
-    remainingToUnlock: Math.max(0, minRequired - totalItemsOrdered)
+    remainingAmountToUnlock: remainingAmount,
+    remainingItemsToUnlock: remainingItems,
+    remainingToUnlock: eligibilityType === 'amount' ? remainingAmount : remainingItems
   };
 };

@@ -10,98 +10,106 @@ export const DEFAULT_WHEEL_SLICES = [
   {
     id: 'slice-1',
     label: 'Banarasi Silk Dupatta',
-    subtext: 'Free Gift on Order',
+    subtext: 'Free Gift on ₹2,999+',
     type: 'product',
     couponCode: 'FREEDUPATTA',
     worth: '₹1,499',
+    minOrderAmount: 2999,
     color: '#700b1d',
     textColor: '#fde047',
     image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80',
-    description: 'Handcrafted royal gold zari Banarasi silk dupatta free with your order!'
+    description: 'Handcrafted royal gold zari Banarasi silk dupatta free with orders above ₹2,999!'
   },
   {
     id: 'slice-2',
     label: 'Flat ₹500 OFF',
-    subtext: 'Min order ₹1,999',
+    subtext: 'Min. Order ₹1,999',
     type: 'coupon',
     couponCode: 'SPIN500',
     worth: '₹500',
+    minOrderAmount: 1999,
     color: '#d97706',
     textColor: '#ffffff',
     image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=400&q=80',
-    description: 'Instant ₹500 discount on your order at checkout.'
+    description: 'Instant ₹500 discount on your order at checkout (Min. order ₹1,999).'
   },
   {
     id: 'slice-3',
     label: 'Pure Silk Kurti',
-    subtext: 'Win Free Outfit',
+    subtext: 'Free Gift on ₹3,499+',
     type: 'product',
     couponCode: 'FREEKURTI',
     worth: '₹2,499',
+    minOrderAmount: 3499,
     color: '#15803d',
     textColor: '#ffffff',
     image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=400&q=80',
-    description: 'Designer Chanderi embroidered kurti with handcrafted neckline.'
+    description: 'Designer Chanderi embroidered kurti free with orders above ₹3,499.'
   },
   {
     id: 'slice-4',
     label: 'Extra 25% OFF',
-    subtext: 'All Collections',
+    subtext: 'Min. Order ₹2,499',
     type: 'discount',
     couponCode: 'LUCKY25',
     worth: '25% OFF',
+    minOrderAmount: 2499,
     color: '#b45309',
     textColor: '#ffffff',
     image: '',
-    description: 'Special 25% festive discount coupon valid on all items.'
+    description: 'Special 25% festive discount coupon valid on min. order ₹2,499 (Max ₹1,000 OFF).'
   },
   {
     id: 'slice-5',
     label: 'Kundan Jewelry Set',
-    subtext: 'Free Luxury Gift',
+    subtext: 'Free Gift on ₹2,999+',
     type: 'product',
     couponCode: 'KUNDANGIFT',
     worth: '₹1,999',
+    minOrderAmount: 2999,
     color: '#831843',
     textColor: '#fde047',
     image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=400&q=80',
-    description: 'Handmade bridal Kundan necklace & earring set.'
+    description: 'Handmade bridal Kundan necklace & earring set free with orders above ₹2,999.'
   },
   {
     id: 'slice-6',
     label: 'Flat ₹300 OFF',
-    subtext: 'No Minimum',
+    subtext: 'Min. Order ₹1,499',
     type: 'coupon',
     couponCode: 'ROYAL300',
     worth: '₹300',
+    minOrderAmount: 1499,
     color: '#0f766e',
     textColor: '#ffffff',
     image: '',
-    description: 'Direct flat ₹300 savings coupon on your entire cart.'
+    description: 'Direct flat ₹300 savings coupon on orders above ₹1,499.'
   },
   {
     id: 'slice-7',
     label: 'Velvet Anarkali Suit',
-    subtext: 'Grand Prize',
+    subtext: 'Free Gift on ₹4,999+',
     type: 'product',
     couponCode: 'WINANARKALI',
     worth: '₹3,999',
+    minOrderAmount: 4999,
     color: '#4c0519',
     textColor: '#fde047',
     image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=400&q=80',
-    description: 'Heavy designer festive Anarkali suit set with dupatta.'
+    description: 'Heavy designer festive Anarkali suit set free with orders above ₹4,999.'
   },
   {
     id: 'slice-8',
     label: 'Free Express Shipping',
-    subtext: 'Zero Delivery Fee',
+    subtext: 'Min. Order ₹999',
     type: 'coupon',
     couponCode: 'FREESHIP',
     worth: '₹150',
+    minOrderAmount: 999,
     color: '#1d4ed8',
     textColor: '#ffffff',
     image: '',
-    description: '100% Free doorstep air express delivery across all pin-codes in India.'
+    description: '100% Free doorstep air express delivery across India on orders above ₹999.'
   }
 ];
 
@@ -264,6 +272,148 @@ export const recordSpinWin = async ({ prize, user = null }) => {
 };
 
 /**
+ * Check whether a user has already spun the wheel (1 spin per user enforcement)
+ */
+export const getUserSpinStatus = (user) => {
+  if (!user || !user.phone) return { hasSpun: false, prize: null };
+  
+  const cleanPhone = String(user.phone).replace(/[^\d]/g, '').slice(-10);
+  if (!cleanPhone) return { hasSpun: false, prize: null };
+
+  // 1. Check user account in lucky draw / customer directory
+  const users = getLuckyDrawUsers();
+  const target = users.find(u => String(u.phone).replace(/[^\d]/g, '').slice(-10) === cleanPhone);
+  if (target?.hasSpun && target?.spinPrize) {
+    return {
+      hasSpun: true,
+      prize: target.spinPrize,
+      wonAt: target.spinWonAt || target.registeredAt
+    };
+  }
+
+  // 2. Check in saved rewards
+  if (Array.isArray(target?.savedRewards) && target.savedRewards.length > 0) {
+    const r = target.savedRewards[0];
+    return {
+      hasSpun: true,
+      prize: {
+        id: r.id,
+        label: r.title || r.label,
+        worth: r.worth,
+        couponCode: r.couponCode,
+        image: r.image
+      },
+      wonAt: r.claimedAt
+    };
+  }
+
+  // 3. Check spin wins history by phone
+  const wins = getSpinWinsHistory();
+  const win = wins.find(w => String(w.userPhone).replace(/[^\d]/g, '').slice(-10) === cleanPhone && w.userPhone !== 'Guest');
+  if (win) {
+    return {
+      hasSpun: true,
+      prize: {
+        label: win.prizeTitle,
+        worth: win.prizeWorth,
+        type: win.prizeType,
+        couponCode: win.couponCode,
+        image: win.prizeImage
+      },
+      wonAt: win.wonAt
+    };
+  }
+
+  return { hasSpun: false, prize: null };
+};
+
+/**
+ * Record spin win permanently tied to the logged-in customer (Enforces 1 spin limit)
+ */
+export const recordUserSpinWin = async ({ prize, user }) => {
+  if (!user || !user.phone) {
+    throw new Error("Login is required to spin the wheel.");
+  }
+
+  const cleanPhone = String(user.phone).replace(/[^\d]/g, '').slice(-10);
+  const now = new Date().toISOString();
+
+  // Save to user profile in LuckyDraw users
+  const users = getLuckyDrawUsers();
+  const targetIndex = users.findIndex(u => String(u.phone).replace(/[^\d]/g, '').slice(-10) === cleanPhone);
+
+  const rewardObj = {
+    id: `rew-${Date.now()}`,
+    title: prize.label,
+    worth: prize.worth,
+    couponCode: prize.couponCode || '',
+    image: prize.image || '',
+    claimedAt: now
+  };
+
+  const updatedUser = {
+    ...user,
+    hasSpun: true,
+    spinPrize: prize,
+    spinWonAt: now,
+    savedRewards: [rewardObj, ...(user.savedRewards || [])]
+  };
+
+  if (targetIndex >= 0) {
+    users[targetIndex] = {
+      ...users[targetIndex],
+      ...updatedUser
+    };
+    saveLuckyDrawUsers(users);
+  } else {
+    saveLuckyDrawUsers([updatedUser, ...users]);
+  }
+
+  // Update current logged-in session
+  try {
+    localStorage.setItem('aura_kurti_customer_auth_session_v1', JSON.stringify(updatedUser));
+  } catch {}
+
+  // Record to spin wins history
+  const record = {
+    id: `spin-${Date.now()}`,
+    prizeTitle: prize.label,
+    prizeWorth: prize.worth,
+    prizeType: prize.type,
+    couponCode: prize.couponCode || '',
+    prizeImage: prize.image || '',
+    userPhone: cleanPhone,
+    userName: user.name || 'Customer',
+    userCity: user.city || '',
+    claimed: true,
+    wonAt: now
+  };
+
+  const currentWins = getSpinWinsHistory();
+  const updatedWins = [record, ...currentWins.slice(0, 99)];
+  try {
+    localStorage.setItem(SPIN_WHEEL_WINS_KEY, JSON.stringify(updatedWins));
+  } catch {}
+  idbSet(SPIN_WHEEL_WINS_KEY, updatedWins);
+
+  // Sync to Supabase customers
+  try {
+    const supabase = getSupabase();
+    if (supabase) {
+      supabase.from('customers').upsert({
+        phone: cleanPhone,
+        name: user.name || 'Customer',
+        city: user.city || '',
+        note: `🎡 Spin Prize: ${prize.label} (Code: ${prize.couponCode || 'N/A'})`,
+        updated_at: now
+      }, { onConflict: 'phone' }).catch(() => {});
+    }
+  } catch {}
+
+  return { record, user: updatedUser };
+};
+
+/**
  * Link guest spin win to a logged-in/newly registered customer
  */
 export const linkSpinWinToCustomer = (user, wonPrize) => {
@@ -275,6 +425,9 @@ export const linkSpinWinToCustomer = (user, wonPrize) => {
     const currentRewards = Array.isArray(target.savedRewards) ? target.savedRewards : [];
     const updatedUser = {
       ...target,
+      hasSpun: true,
+      spinPrize: wonPrize,
+      spinWonAt: new Date().toISOString(),
       savedRewards: [
         {
           id: `rew-${Date.now()}`,

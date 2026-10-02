@@ -58,7 +58,7 @@ export const StoryReels = ({ onSelectCategory }) => {
     <div className="py-3 sm:py-4 bg-[#fcfaf7] border-b border-[#ebdcc7]/50">
       <div className="container mx-auto px-3 sm:px-4">
         
-        <div className="flex items-center gap-3 sm:gap-6 overflow-x-auto pb-1.5 px-1 scrollbar-none justify-start md:justify-center">
+        <div className="flex items-center gap-3 sm:gap-6 overflow-x-auto pb-1.5 px-1 scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden justify-start md:justify-center">
           {STORY_ITEMS.map((story, idx) => (
             <motion.button
               key={story.id}

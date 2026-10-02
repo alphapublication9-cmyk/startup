@@ -70,6 +70,7 @@ import {
 } from 'lucide-react';
 import { SIZES, INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../../data/initialProducts';
 import { INITIAL_COUPONS, INITIAL_REVIEWS } from '../../data/initialCoupons';
+import { DEFAULT_HERO_BANNER, DEFAULT_EDITORIAL_CAPSULES } from '../../data/initialSettings';
 import { OfficialInvoiceModal } from './OfficialInvoiceModal';
 import { normalizeImageUrl, isGoogleDriveUrl } from '../../utils/imageUrl';
 import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
@@ -331,7 +332,9 @@ export const AdminPage = ({
     return {
       title: cfg.title || '',
       tagline: cfg.tagline || '',
-      minProductsRequired: cfg.minProductsRequired || 3,
+      minOrderAmount: Number(cfg.minOrderAmount || 10000),
+      minProductsRequired: Number(cfg.minProductsRequired || 3),
+      eligibilityType: cfg.eligibilityType || 'amount',
       announcementDate: cfg.announcementDate || '2026-11-15',
       terms: cfg.terms || '',
       isActive: cfg.isActive !== false
@@ -357,7 +360,9 @@ export const AdminPage = ({
       setCampaignFormData({
         title: cfg.title || '',
         tagline: cfg.tagline || '',
-        minProductsRequired: cfg.minProductsRequired || 3,
+        minOrderAmount: Number(cfg.minOrderAmount || 10000),
+        minProductsRequired: Number(cfg.minProductsRequired || 3),
+        eligibilityType: cfg.eligibilityType || 'amount',
         announcementDate: cfg.announcementDate || '2026-11-15',
         terms: cfg.terms || '',
         isActive: cfg.isActive !== false
@@ -369,7 +374,9 @@ export const AdminPage = ({
           setCampaignFormData({
             title: cloudCfg.title || '',
             tagline: cloudCfg.tagline || '',
-            minProductsRequired: cloudCfg.minProductsRequired || 3,
+            minOrderAmount: Number(cloudCfg.minOrderAmount || 10000),
+            minProductsRequired: Number(cloudCfg.minProductsRequired || 3),
+            eligibilityType: cloudCfg.eligibilityType || 'amount',
             announcementDate: cloudCfg.announcementDate || '2026-11-15',
             terms: cloudCfg.terms || '',
             isActive: cloudCfg.isActive !== false
@@ -386,7 +393,9 @@ export const AdminPage = ({
       ...luckyDrawConfig,
       title: campaignFormData.title.trim(),
       tagline: campaignFormData.tagline.trim(),
+      minOrderAmount: Number(campaignFormData.minOrderAmount) || 10000,
       minProductsRequired: Number(campaignFormData.minProductsRequired) || 3,
+      eligibilityType: campaignFormData.eligibilityType || 'amount',
       announcementDate: campaignFormData.announcementDate,
       terms: campaignFormData.terms,
       isActive: campaignFormData.isActive
@@ -491,14 +500,15 @@ export const AdminPage = ({
 
   // 1-Click Pick Random Winner
   const handlePickRandomWinner = () => {
-    const minReq = luckyDrawConfig.minProductsRequired || 3;
+    const isAmountMode = (luckyDrawConfig.eligibilityType || 'amount') === 'amount';
+    const targetThreshold = isAmountMode ? (luckyDrawConfig.minOrderAmount || 10000) : (luckyDrawConfig.minProductsRequired || 3);
     const eligibleUsers = luckyDrawUsers.filter(u => {
-      const { isEligible } = getUserDrawEligibility(u.phone, minReq);
+      const { isEligible } = getUserDrawEligibility(u.phone, luckyDrawConfig);
       return isEligible;
     });
 
     if (eligibleUsers.length === 0) {
-      alert(`No eligible contestants found who have ordered minimum ${minReq} products yet!`);
+      alert(`No eligible contestants found who have qualified (${isAmountMode ? `minimum ₹${Number(targetThreshold).toLocaleString('en-IN')} order value` : `minimum ${targetThreshold} products`}) yet!`);
       return;
     }
 
@@ -557,7 +567,9 @@ export const AdminPage = ({
     }
   };
 
-  const minRequiredForDraw = luckyDrawConfig.minProductsRequired || 3;
+  const isDrawAmountMode = (luckyDrawConfig.eligibilityType || 'amount') === 'amount';
+  const drawMinOrderAmount = Number(luckyDrawConfig.minOrderAmount || 10000);
+  const minRequiredForDraw = Number(luckyDrawConfig.minProductsRequired || 3);
   const filteredDrawUsers = luckyDrawUsers.filter(u => {
     if (drawSearchQuery.trim()) {
       const q = drawSearchQuery.toLowerCase();
@@ -567,7 +579,7 @@ export const AdminPage = ({
         (u.city && u.city.toLowerCase().includes(q));
       if (!match) return false;
     }
-    const { isEligible } = getUserDrawEligibility(u.phone, minRequiredForDraw);
+    const { isEligible } = getUserDrawEligibility(u.phone, luckyDrawConfig);
     if (drawEligibilityFilter === 'Eligible') return isEligible;
     if (drawEligibilityFilter === 'Ineligible') return !isEligible;
     return true;
@@ -763,16 +775,168 @@ export const AdminPage = ({
   });
 
   // Store Settings State with Live Props Sync
-  const [storeSettings, setStoreSettings] = useState({ ...settings });
+  const [storeSettings, setStoreSettings] = useState(() => ({
+    ...settings,
+    heroBanner: {
+      ...DEFAULT_HERO_BANNER,
+      ...(settings?.heroBanner || {})
+    },
+    editorialCapsules: Array.isArray(settings?.editorialCapsules) && settings.editorialCapsules.length > 0
+      ? settings.editorialCapsules
+      : DEFAULT_EDITORIAL_CAPSULES
+  }));
   const [importJsonInput, setImportJsonInput] = useState('');
   const [importStatusMsg, setImportStatusMsg] = useState('');
 
   // Keep storeSettings synchronized whenever settings prop updates from Supabase/Local storage
   useEffect(() => {
     if (settings && Object.keys(settings).length > 0) {
-      setStoreSettings(prev => ({ ...prev, ...settings }));
+      setStoreSettings(prev => ({
+        ...prev,
+        ...settings,
+        heroBanner: {
+          ...DEFAULT_HERO_BANNER,
+          ...(prev?.heroBanner || {}),
+          ...(settings?.heroBanner || {})
+        },
+        editorialCapsules: Array.isArray(settings?.editorialCapsules) && settings.editorialCapsules.length > 0
+          ? settings.editorialCapsules
+          : (Array.isArray(prev?.editorialCapsules) && prev.editorialCapsules.length > 0 ? prev.editorialCapsules : DEFAULT_EDITORIAL_CAPSULES)
+      }));
     }
   }, [settings]);
+
+  // Storefront Studio Handlers (Hero Banner & Editorial Lookbook)
+  const handleUpdateHeroField = (field, value) => {
+    setStoreSettings(prev => ({
+      ...prev,
+      heroBanner: {
+        ...(prev.heroBanner || DEFAULT_HERO_BANNER),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleHeroImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      if (compressed) {
+        handleUpdateHeroField('featuredCardImage', compressed);
+      }
+    } catch (err) {
+      console.error("Hero image upload error:", err);
+    }
+  };
+
+  const handlePasteHeroImage = async (e) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+    const items = clipboardData.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            const res = await compressImageFile(file);
+            if (res) handleUpdateHeroField('featuredCardImage', res);
+            return;
+          }
+        }
+      }
+    }
+    const txt = clipboardData.getData('text');
+    if (txt && (txt.startsWith('http') || txt.startsWith('data:image/') || isGoogleDriveUrl(txt))) {
+      e.preventDefault();
+      let clean = normalizeImageUrl(txt);
+      if (clean.startsWith('data:image/')) clean = await compressDataUrl(clean);
+      handleUpdateHeroField('featuredCardImage', clean);
+    }
+  };
+
+  const handleUpdateCapsuleField = (index, field, value) => {
+    setStoreSettings(prev => {
+      const currentCaps = [...(prev.editorialCapsules || DEFAULT_EDITORIAL_CAPSULES)];
+      currentCaps[index] = {
+        ...(currentCaps[index] || {}),
+        [field]: value
+      };
+      return {
+        ...prev,
+        editorialCapsules: currentCaps
+      };
+    });
+  };
+
+  const handleCapsuleImageUpload = async (index, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      if (compressed) {
+        handleUpdateCapsuleField(index, 'image', compressed);
+      }
+    } catch (err) {
+      console.error("Capsule image upload error:", err);
+    }
+  };
+
+  const handlePasteCapsuleImage = async (index, e) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+    const items = clipboardData.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            const res = await compressImageFile(file);
+            if (res) handleUpdateCapsuleField(index, 'image', res);
+            return;
+          }
+        }
+      }
+    }
+    const txt = clipboardData.getData('text');
+    if (txt && (txt.startsWith('http') || txt.startsWith('data:image/') || isGoogleDriveUrl(txt))) {
+      e.preventDefault();
+      let clean = normalizeImageUrl(txt);
+      if (clean.startsWith('data:image/')) clean = await compressDataUrl(clean);
+      handleUpdateCapsuleField(index, 'image', clean);
+    }
+  };
+
+  const handleSaveStorefrontStudio = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const updated = {
+      ...storeSettings,
+      heroBanner: storeSettings.heroBanner || DEFAULT_HERO_BANNER,
+      editorialCapsules: Array.isArray(storeSettings.editorialCapsules) && storeSettings.editorialCapsules.length > 0 
+        ? storeSettings.editorialCapsules 
+        : DEFAULT_EDITORIAL_CAPSULES
+    };
+    setStoreSettings(updated);
+    onSaveSettings(updated);
+    setSaveSuccessMsg("🎉 Storefront Hero Banner & Lookbook Capsules saved and synced with Database!");
+    setTimeout(() => setSaveSuccessMsg(''), 4000);
+  };
+
+  const handleResetStorefrontToDefaults = () => {
+    if (window.confirm("Reset Hero Banner and Haute Couture Lookbook to original luxury presets?")) {
+      const updated = {
+        ...storeSettings,
+        heroBanner: DEFAULT_HERO_BANNER,
+        editorialCapsules: DEFAULT_EDITORIAL_CAPSULES
+      };
+      setStoreSettings(updated);
+      onSaveSettings(updated);
+      setSaveSuccessMsg("Reset Storefront to original luxury presets.");
+      setTimeout(() => setSaveSuccessMsg(''), 3000);
+    }
+  };
 
   // Cloud Database (Supabase) State
   const [supabaseConfig, setSupabaseConfig] = useState(getSupabaseConfig);
@@ -2048,6 +2212,18 @@ export const AdminPage = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('storefront')}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'storefront'
+                ? 'bg-[#faf7f2] text-brand-950 border-stone-300 shadow-sm -mb-[1px]'
+                : 'text-amber-300 hover:text-amber-200'
+            }`}
+          >
+            <Sparkles size={15} className={activeTab === 'storefront' ? 'text-amber-700' : 'text-amber-400'} />
+            <span className="font-extrabold text-amber-500">🎨 Storefront & Lookbook Studio</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('coupons')}
             className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'coupons'
@@ -2487,6 +2663,563 @@ export const AdminPage = ({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* TAB 2.5: STOREFRONT & LOOKBOOK STUDIO (HERO BANNER & EDITORIAL CAPSULES) */}
+        {activeTab === 'storefront' && (
+          <div className="space-y-8 max-w-6xl mx-auto">
+            
+            {/* Header Strip with Save Actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-sm">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-serif text-xl sm:text-2xl font-bold text-stone-900 flex items-center gap-2">
+                    <Sparkles size={24} className="text-amber-600" />
+                    <span>Storefront Content & Lookbook Studio</span>
+                  </h2>
+                  <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                    Live Sync Active
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 mt-1">
+                  Customize the homepage Hero Banner texts & photos, and edit the 3 Haute Couture Lookbook Editorial Capsules in real-time.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleResetStorefrontToDefaults}
+                  className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Reset to original luxury presets"
+                >
+                  <RotateCcw size={14} />
+                  <span>Reset Defaults</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveStorefrontStudio}
+                  className="px-6 py-2.5 royal-maroon-bg text-gold-100 hover:opacity-95 font-black text-xs rounded-xl shadow-lg shadow-rose-950/20 border border-gold-400/40 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Check size={16} />
+                  <span>Save & Sync Storefront</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ======================================================== */}
+            {/* PART 1: HERO BANNER STUDIO */}
+            {/* ======================================================== */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-sm space-y-6">
+              
+              <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-lg shadow-xs">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-stone-900">
+                      Main Luxury Hero Banner
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      Edit headline, subtitle, action buttons, and featured right showcase card
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                  Top Homepage Section
+                </span>
+              </div>
+
+              {/* Live Preview Box */}
+              <div className="p-4 bg-gradient-to-r from-[#faf5ee] via-[#f7eee0] to-[#f2e4cf] rounded-2xl border border-[#e8d5be] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-900 flex items-center gap-1">
+                    <Sparkles size={12} className="text-amber-700" />
+                    <span>Live Customer View Preview:</span>
+                  </span>
+                  <span className="text-[9px] text-stone-500 font-semibold">Updates live as you type</span>
+                </div>
+                
+                <div className="p-4 sm:p-6 bg-white/70 backdrop-blur-md rounded-2xl border border-amber-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="space-y-2 text-center md:text-left flex-1">
+                    <span className="inline-block px-3 py-1 bg-white border border-amber-300 text-amber-900 text-[10px] font-bold uppercase rounded-full">
+                      {storeSettings.heroBanner?.tag || DEFAULT_HERO_BANNER.tag}
+                    </span>
+                    <h2 className="font-heading text-xl sm:text-2xl font-black text-stone-900">
+                      {storeSettings.heroBanner?.heading || DEFAULT_HERO_BANNER.heading}{' '}
+                      <span className="gold-gradient-text italic">
+                        {storeSettings.heroBanner?.headingAccent || DEFAULT_HERO_BANNER.headingAccent}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-stone-600 line-clamp-2 max-w-md">
+                      {storeSettings.heroBanner?.description || DEFAULT_HERO_BANNER.description}
+                    </p>
+                    <div className="flex items-center gap-2 pt-1 justify-center md:justify-start">
+                      <span className="px-4 py-1.5 royal-maroon-bg text-gold-100 text-xs font-bold rounded-full shadow-xs">
+                        {storeSettings.heroBanner?.primaryCtaText || DEFAULT_HERO_BANNER.primaryCtaText}
+                      </span>
+                      <span className="px-4 py-1.5 bg-white border border-stone-300 text-stone-800 text-xs font-bold rounded-full shadow-xs">
+                        {storeSettings.heroBanner?.secondaryCtaText || DEFAULT_HERO_BANNER.secondaryCtaText}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="w-40 sm:w-48 aspect-[3/4] rounded-2xl overflow-hidden border-2 border-white shadow-md relative shrink-0">
+                    <img 
+                      src={normalizeImageUrl(storeSettings.heroBanner?.featuredCardImage) || DEFAULT_HERO_BANNER.featuredCardImage}
+                      alt="Featured Preview"
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = DEFAULT_HERO_BANNER.featuredCardImage;
+                      }}
+                    />
+                    <div className="absolute top-2 right-2 bg-[#700b1d] text-gold-100 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
+                      {storeSettings.heroBanner?.featuredCardDiscount || DEFAULT_HERO_BANNER.featuredCardDiscount}
+                    </div>
+                    <div className="absolute bottom-2 inset-x-2 bg-white/95 p-2 rounded-xl border border-stone-200 text-[10px]">
+                      <p className="font-black text-[8px] text-[#700b1d] uppercase">{storeSettings.heroBanner?.featuredCardTag || "TRENDING"}</p>
+                      <p className="font-bold text-stone-900 truncate">{storeSettings.heroBanner?.featuredCardTitle || "Featured Ensemble"}</p>
+                      <span className="font-extrabold text-[#700b1d] text-[9px]">{storeSettings.heroBanner?.featuredCardPrice || "From ₹999"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Text Fields Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Top Tagline Pill */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Top Pill Tagline
+                  </label>
+                  <input
+                    type="text"
+                    value={storeSettings.heroBanner?.tag || ''}
+                    onChange={(e) => handleUpdateHeroField('tag', e.target.value)}
+                    placeholder="e.g. Spring/Summer 2026 • Luxury Collection"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-amber-900 focus:outline-none focus:border-brand-700"
+                  />
+                </div>
+
+                {/* Main Headline */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Main Headline (First Line)
+                  </label>
+                  <input
+                    type="text"
+                    value={storeSettings.heroBanner?.heading || ''}
+                    onChange={(e) => handleUpdateHeroField('heading', e.target.value)}
+                    placeholder="e.g. Grace & Timeless"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-brand-700"
+                  />
+                </div>
+
+                {/* Accent Headline */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Gold Accent Headline (Second Line)
+                  </label>
+                  <input
+                    type="text"
+                    value={storeSettings.heroBanner?.headingAccent || ''}
+                    onChange={(e) => handleUpdateHeroField('headingAccent', e.target.value)}
+                    placeholder="e.g. Women's Couture"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-brand-900 focus:outline-none focus:border-brand-700"
+                  />
+                </div>
+
+                {/* Trust Tagline Strip */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Bottom Trust Strip Tagline
+                  </label>
+                  <input
+                    type="text"
+                    value={storeSettings.heroBanner?.trustTagline || ''}
+                    onChange={(e) => handleUpdateHeroField('trustTagline', e.target.value)}
+                    placeholder="e.g. ⚡ Instant Confirmation • Fast Pan-India Dispatch • 7-Day Easy Exchange"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs text-stone-800 focus:outline-none focus:border-brand-700"
+                  />
+                </div>
+
+                {/* Primary CTA Button Text */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Primary Button Text
+                  </label>
+                  <input
+                    type="text"
+                    value={storeSettings.heroBanner?.primaryCtaText || ''}
+                    onChange={(e) => handleUpdateHeroField('primaryCtaText', e.target.value)}
+                    placeholder="e.g. Shop Collection"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-900"
+                  />
+                </div>
+
+                {/* Secondary CTA Button Text */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                    Secondary Button Text
+                  </label>
+                  <input
+                    type="text"
+                    value={storeSettings.heroBanner?.secondaryCtaText || ''}
+                    onChange={(e) => handleUpdateHeroField('secondaryCtaText', e.target.value)}
+                    placeholder="e.g. WhatsApp Catalog"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-900"
+                  />
+                </div>
+              </div>
+
+              {/* Subtitle / Description Paragraph */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Hero Subtitle Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={storeSettings.heroBanner?.description || ''}
+                  onChange={(e) => handleUpdateHeroField('description', e.target.value)}
+                  placeholder="Describe your boutique collection highlights..."
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs leading-relaxed focus:outline-none focus:border-brand-700"
+                />
+              </div>
+
+              {/* RIGHT FEATURED SHOWCASE CARD EDITOR */}
+              <div className="p-5 bg-amber-50/70 border-2 border-amber-200 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                    <Crown size={14} className="text-amber-700" />
+                    <span>Featured Showcase Card (Right Side Model Photo & Tag)</span>
+                  </h4>
+                  <span className="text-[10px] text-amber-800 font-bold">High Visual Impact</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                  
+                  {/* Photo Preview & Upload Controls */}
+                  <div className="sm:col-span-4 flex items-center gap-3">
+                    <div className="w-20 h-28 rounded-xl overflow-hidden border-2 border-amber-400 bg-stone-100 shadow-sm shrink-0">
+                      <img
+                        src={normalizeImageUrl(storeSettings.heroBanner?.featuredCardImage) || DEFAULT_HERO_BANNER.featuredCardImage}
+                        alt="Hero Featured Card"
+                        className="w-full h-full object-cover object-top"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = DEFAULT_HERO_BANNER.featuredCardImage;
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="px-3 py-1.5 royal-maroon-bg text-gold-100 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 active:scale-95">
+                        <Upload size={13} />
+                        <span>Browse Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleHeroImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="text-[10px] text-stone-500">Auto-compressed to WebP</p>
+                    </div>
+                  </div>
+
+                  {/* Image URL & Ctrl+V Paste */}
+                  <div className="sm:col-span-8 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-stone-700">
+                          Photo URL / Google Drive / Direct Paste (Ctrl+V)
+                        </label>
+                        {isGoogleDriveUrl(storeSettings.heroBanner?.featuredCardImage) && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-300 font-bold px-1.5 py-0.2 rounded">
+                            ✓ Google Drive
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={storeSettings.heroBanner?.featuredCardImage || ''}
+                        onChange={(e) => handleUpdateHeroField('featuredCardImage', normalizeImageUrl(e.target.value))}
+                        onPaste={handlePasteHeroImage}
+                        placeholder="Paste image link, Drive link or click & press Ctrl + V"
+                        className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs font-mono text-stone-800"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-600 mb-0.5">Top Tag</label>
+                        <input
+                          type="text"
+                          value={storeSettings.heroBanner?.featuredCardTag || ''}
+                          onChange={(e) => handleUpdateHeroField('featuredCardTag', e.target.value)}
+                          placeholder="e.g. TRENDING NOW"
+                          className="w-full px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-600 mb-0.5">Product Title</label>
+                        <input
+                          type="text"
+                          value={storeSettings.heroBanner?.featuredCardTitle || ''}
+                          onChange={(e) => handleUpdateHeroField('featuredCardTitle', e.target.value)}
+                          placeholder="e.g. Chanderi Anarkali"
+                          className="w-full px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-bold text-stone-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-600 mb-0.5">Price Tag</label>
+                        <input
+                          type="text"
+                          value={storeSettings.heroBanner?.featuredCardPrice || ''}
+                          onChange={(e) => handleUpdateHeroField('featuredCardPrice', e.target.value)}
+                          placeholder="e.g. From ₹999"
+                          className="w-full px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-bold text-brand-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-600 mb-0.5">Discount Badge</label>
+                        <input
+                          type="text"
+                          value={storeSettings.heroBanner?.featuredCardDiscount || ''}
+                          onChange={(e) => handleUpdateHeroField('featuredCardDiscount', e.target.value)}
+                          placeholder="e.g. UP TO 50% OFF"
+                          className="w-full px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-bold text-rose-700"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            {/* ======================================================== */}
+            {/* PART 2: HAUTE COUTURE LOOKBOOK EDITORIAL CAPSULES */}
+            {/* ======================================================== */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-sm space-y-6">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-stone-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-lg shadow-xs">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-stone-900">
+                      The Haute Couture Lookbook (3 Editorial Cards)
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      Edit the photos, titles, story descriptions, and linked categories for the 3 curated lookbook capsules on the homepage
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-brand-950 bg-rose-50 border border-rose-200 px-3 py-1 rounded-full self-start sm:self-auto">
+                  Interactive Category Jump
+                </span>
+              </div>
+
+              {/* 3 Editorial Capsule Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {(storeSettings.editorialCapsules || DEFAULT_EDITORIAL_CAPSULES).map((capsule, idx) => {
+                  const capImg = normalizeImageUrl(capsule.image) || DEFAULT_EDITORIAL_CAPSULES[idx]?.image;
+                  return (
+                    <div 
+                      key={capsule.id || idx}
+                      className="p-4 bg-[#fdfcf9] rounded-3xl border-2 border-stone-200 hover:border-gold-400 transition-all space-y-4 shadow-xs flex flex-col justify-between"
+                    >
+                      {/* Card Header & Preview */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black royal-maroon-bg text-gold-100 px-3 py-0.5 rounded-full">
+                            Capsule #{idx + 1}
+                          </span>
+                          <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                            {capsule.category || 'Category'}
+                          </span>
+                        </div>
+
+                        {/* Visual Card Preview */}
+                        <div className="h-56 rounded-2xl overflow-hidden border border-amber-300 relative shadow-sm group">
+                          <img
+                            src={capImg}
+                            alt={capsule.title}
+                            className="w-full h-full object-cover object-top"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = DEFAULT_EDITORIAL_CAPSULES[idx]?.image;
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/30 to-transparent flex flex-col justify-end p-3.5 text-white">
+                            <span className="text-[9px] font-extrabold uppercase tracking-widest text-amber-300">
+                              {capsule.tag || "TAG"}
+                            </span>
+                            <h4 className="font-serif text-base font-bold text-white line-clamp-1">
+                              {capsule.title || "Capsule Title"}
+                            </h4>
+                            <p className="text-[10px] text-stone-300 line-clamp-2 mt-0.5">
+                              {capsule.desc || "Story description..."}
+                            </p>
+                            <span className="text-[10px] font-bold text-amber-300 mt-1 flex items-center gap-1">
+                              <span>{capsule.cta || "Explore"}</span> →
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Image Upload & Link Input */}
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-stone-700">
+                              Capsule Photo
+                            </label>
+                            <label className="text-[10px] royal-maroon-bg text-gold-100 px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all hover:opacity-90 active:scale-95 shadow-2xs flex items-center gap-1">
+                              <Upload size={11} />
+                              <span>Browse File</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleCapsuleImageUpload(idx, e)}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                          
+                          <input
+                            type="text"
+                            value={capsule.image || ''}
+                            onChange={(e) => handleUpdateCapsuleField(idx, 'image', normalizeImageUrl(e.target.value))}
+                            onPaste={(e) => handlePasteCapsuleImage(idx, e)}
+                            placeholder="Paste photo link or Ctrl + V"
+                            className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-mono text-stone-800"
+                          />
+                        </div>
+
+                        {/* Tag & Title Inputs */}
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-stone-600 mb-0.5 uppercase tracking-wider">
+                              Editorial Tag
+                            </label>
+                            <input
+                              type="text"
+                              value={capsule.tag || ''}
+                              onChange={(e) => handleUpdateCapsuleField(idx, 'tag', e.target.value)}
+                              placeholder="e.g. TIMELESS CLASSICS"
+                              className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-bold text-amber-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-stone-600 mb-0.5 uppercase tracking-wider">
+                              Capsule Title
+                            </label>
+                            <input
+                              type="text"
+                              value={capsule.title || ''}
+                              onChange={(e) => handleUpdateCapsuleField(idx, 'title', e.target.value)}
+                              placeholder="e.g. The Royal Silk Edit"
+                              className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-stone-600 mb-0.5 uppercase tracking-wider">
+                              Story Description
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={capsule.desc || ''}
+                              onChange={(e) => handleUpdateCapsuleField(idx, 'desc', e.target.value)}
+                              placeholder="Short craft narrative..."
+                              className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs leading-relaxed"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-stone-600 mb-0.5 uppercase tracking-wider">
+                                Linked Category
+                              </label>
+                              <select
+                                value={capsule.category || ''}
+                                onChange={(e) => handleUpdateCapsuleField(idx, 'category', e.target.value)}
+                                className="w-full px-2 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-800"
+                              >
+                                {categories.map((c) => {
+                                  const name = typeof c === 'string' ? c : c.name;
+                                  return (
+                                    <option key={name} value={name}>
+                                      {name}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold text-stone-600 mb-0.5 uppercase tracking-wider">
+                                Button CTA
+                              </label>
+                              <input
+                                type="text"
+                                value={capsule.cta || ''}
+                                onChange={(e) => handleUpdateCapsuleField(idx, 'cta', e.target.value)}
+                                placeholder="e.g. Explore Capsule"
+                                className="w-full px-2.5 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+
+            {/* Bottom Save & Sync Bar */}
+            <div className="p-6 bg-gradient-to-r from-stone-900 via-brand-950 to-stone-900 text-white rounded-3xl border border-gold-400/50 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="font-heading text-base font-bold text-gold-200 flex items-center gap-2">
+                  <CheckCircle size={18} className="text-emerald-400" />
+                  <span>Ready to publish changes?</span>
+                </h4>
+                <p className="text-xs text-stone-300 mt-0.5">
+                  Clicking save will instantly sync Hero Banner & Lookbook Capsules to Supabase Cloud, IndexedDB & LocalStorage.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onBackToStore}
+                  className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <ExternalLink size={14} />
+                  <span>Preview Storefront</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveStorefrontStudio}
+                  className="px-7 py-2.5 bg-gradient-to-r from-gold-400 to-gold-500 hover:from-gold-300 hover:to-gold-400 text-brand-950 font-black text-xs rounded-xl shadow-lg border border-gold-300 transition-all cursor-pointer active:scale-95 flex items-center gap-2"
+                >
+                  <Check size={16} />
+                  <span>Save All Changes</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -3401,14 +4134,25 @@ export const AdminPage = ({
         {/* TAB 9: COMPANY & STORE SETTINGS */}
         {activeTab === 'settings' && (
           <div className="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-sm space-y-6">
-            <div>
-              <h2 className="font-serif text-xl font-bold text-stone-900 flex items-center gap-2">
-                <Building2 size={22} className="text-amber-700" />
-                <span>Company Billing & Store Settings</span>
-              </h2>
-              <p className="text-xs text-stone-500 mt-1">
-                Configure your company name, GSTIN, billing address, and WhatsApp contact for official Tax Invoices.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+              <div>
+                <h2 className="font-serif text-xl font-bold text-stone-900 flex items-center gap-2">
+                  <Building2 size={22} className="text-amber-700" />
+                  <span>Company Billing & Store Settings</span>
+                </h2>
+                <p className="text-xs text-stone-500 mt-1">
+                  Configure your company name, GSTIN, billing address, and WhatsApp contact for official Tax Invoices.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('storefront')}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+              >
+                <Sparkles size={14} className="text-stone-950 fill-stone-950" />
+                <span>🎨 Edit Storefront & Banners</span>
+              </button>
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-4">
@@ -4245,33 +4989,129 @@ export const AdminPage = ({
                       type="text"
                       value={campaignFormData.tagline}
                       onChange={(e) => setCampaignFormData({ ...campaignFormData, tagline: e.target.value })}
-                      placeholder="e.g. Order minimum 3 Boutique Apparel Items to Enter Giveaway!"
+                      placeholder="e.g. Order for minimum ₹10,000 to Enter the Mega Royal Giveaway!"
                       className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-800"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-amber-950 uppercase tracking-wider mb-1">
-                        Min. Products Required 🛍️
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        required
-                        value={campaignFormData.minProductsRequired}
-                        onChange={(e) => setCampaignFormData({ ...campaignFormData, minProductsRequired: Number(e.target.value) })}
-                        className="w-full px-3 py-2 bg-amber-50 border-2 border-amber-300 font-extrabold text-amber-950 rounded-xl text-sm"
-                      />
-                      <span className="text-[10px] text-amber-800 font-semibold mt-0.5 block">
-                        Default: 3 items minimum
-                      </span>
+                  {/* Qualification Rule Mode Switcher */}
+                  <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-300 space-y-2.5">
+                    <label className="block font-black text-amber-950 uppercase tracking-wider text-[11px]">
+                      🎯 Contest Qualification Criteria Rule
+                    </label>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCampaignFormData({ ...campaignFormData, eligibilityType: 'amount' })}
+                        className={`p-2.5 rounded-xl border text-left font-bold transition-all cursor-pointer flex flex-col gap-0.5 ${
+                          (campaignFormData.eligibilityType || 'amount') === 'amount'
+                            ? 'bg-[#700b1d] text-gold-100 border-[#700b1d] shadow-xs'
+                            : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                        }`}
+                      >
+                        <span className="text-xs flex items-center gap-1">
+                          💳 Minimum Order Value (₹)
+                        </span>
+                        <span className={`text-[10px] ${
+                          (campaignFormData.eligibilityType || 'amount') === 'amount' ? 'text-gold-200/90' : 'text-stone-500'
+                        }`}>
+                          Qualify by total order amount
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCampaignFormData({ ...campaignFormData, eligibilityType: 'count' })}
+                        className={`p-2.5 rounded-xl border text-left font-bold transition-all cursor-pointer flex flex-col gap-0.5 ${
+                          campaignFormData.eligibilityType === 'count'
+                            ? 'bg-[#700b1d] text-gold-100 border-[#700b1d] shadow-xs'
+                            : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                        }`}
+                      >
+                        <span className="text-xs flex items-center gap-1">
+                          🛍️ Product Quantity (Count)
+                        </span>
+                        <span className={`text-[10px] ${
+                          campaignFormData.eligibilityType === 'count' ? 'text-gold-200/90' : 'text-stone-500'
+                        }`}>
+                          Qualify by items ordered count
+                        </span>
+                      </button>
                     </div>
 
+                    {/* Minimum Order Amount Input (₹) */}
+                    <div className="pt-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-amber-950 uppercase tracking-wider text-[11px]">
+                          Minimum Order Amount (₹) <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[10px] text-amber-800 font-extrabold bg-amber-200/70 px-2 py-0.5 rounded-md">
+                          Current: ₹{Number(campaignFormData.minOrderAmount || 10000).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-stone-500 font-bold text-sm">₹</span>
+                        <input
+                          type="number"
+                          min={500}
+                          step={500}
+                          required
+                          value={campaignFormData.minOrderAmount || 10000}
+                          onChange={(e) => setCampaignFormData({ ...campaignFormData, minOrderAmount: Number(e.target.value) })}
+                          placeholder="10000"
+                          className="w-full pl-7 pr-3 py-2 bg-white border-2 border-amber-300 font-extrabold text-amber-950 rounded-xl text-sm focus:outline-none focus:border-[#700b1d]"
+                        />
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[10px] text-stone-500 font-semibold">Quick Set:</span>
+                        {[5000, 10000, 15000, 20000, 25000].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setCampaignFormData({ 
+                              ...campaignFormData, 
+                              minOrderAmount: preset,
+                              tagline: `Order for minimum ₹${preset.toLocaleString('en-IN')} to Enter the Mega Royal Giveaway!`
+                            })}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border transition-all cursor-pointer ${
+                              Number(campaignFormData.minOrderAmount) === preset
+                                ? 'bg-amber-800 text-gold-100 border-amber-900 shadow-2xs'
+                                : 'bg-white text-stone-700 border-stone-300 hover:bg-amber-100'
+                            }`}
+                          >
+                            ₹{preset >= 1000 ? `${preset / 1000}k` : preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Minimum Products Count (visible if count mode or secondary) */}
+                    {campaignFormData.eligibilityType === 'count' && (
+                      <div className="pt-2 border-t border-amber-200">
+                        <label className="block font-bold text-amber-950 uppercase tracking-wider mb-1 text-[11px]">
+                          Min. Products Required 🛍️
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={50}
+                          required
+                          value={campaignFormData.minProductsRequired || 3}
+                          onChange={(e) => setCampaignFormData({ ...campaignFormData, minProductsRequired: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white border-2 border-amber-300 font-extrabold text-amber-950 rounded-xl text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
-                        Draw Date
+                        Draw / Result Date
                       </label>
                       <input
                         type="date"
@@ -4280,6 +5120,24 @@ export const AdminPage = ({
                         className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-800 font-semibold"
                       />
                     </div>
+
+                    <div>
+                      <label className="block font-bold text-stone-700 uppercase tracking-wider mb-1">
+                        Display Status
+                      </label>
+                      <div className="flex items-center gap-2 h-10 px-3 bg-stone-50 border border-stone-300 rounded-xl">
+                        <input
+                          type="checkbox"
+                          id="activeCheck"
+                          checked={campaignFormData.isActive}
+                          onChange={(e) => setCampaignFormData({ ...campaignFormData, isActive: e.target.checked })}
+                          className="w-4 h-4 rounded text-brand-900 cursor-pointer accent-[#700b1d]"
+                        />
+                        <label htmlFor="activeCheck" className="text-xs font-bold text-stone-800 cursor-pointer">
+                          Campaign is Active
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -4287,25 +5145,12 @@ export const AdminPage = ({
                       Terms & Conditions / Guidelines
                     </label>
                     <textarea
-                      rows={3}
+                      rows={2}
                       value={campaignFormData.terms}
                       onChange={(e) => setCampaignFormData({ ...campaignFormData, terms: e.target.value })}
                       placeholder="List participant guidelines..."
                       className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-700 text-[11px]"
                     />
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="checkbox"
-                      id="activeCheck"
-                      checked={campaignFormData.isActive}
-                      onChange={(e) => setCampaignFormData({ ...campaignFormData, isActive: e.target.checked })}
-                      className="w-4 h-4 rounded text-brand-900 cursor-pointer accent-[#700b1d]"
-                    />
-                    <label htmlFor="activeCheck" className="text-xs font-bold text-stone-800 cursor-pointer">
-                      Campaign is Active & Visible in Header
-                    </label>
                   </div>
 
                   <button
@@ -4428,7 +5273,11 @@ export const AdminPage = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500 mt-0.5">
-                    Live accounts created by customers with Mobile Number & Password. Minimum 3 product orders needed for eligibility.
+                    Live accounts created by customers with Mobile Number & Password. {
+                      isDrawAmountMode 
+                        ? `Minimum ₹${drawMinOrderAmount.toLocaleString('en-IN')} total order value required for eligibility.`
+                        : `Minimum ${minRequiredForDraw} product orders needed for eligibility.`
+                    }
                   </p>
                 </div>
 
@@ -4451,7 +5300,7 @@ export const AdminPage = ({
                         drawEligibilityFilter === 'Eligible' ? 'bg-emerald-600 text-white shadow-xs' : 'text-stone-500'
                       }`}
                     >
-                      ✅ Eligible ({luckyDrawUsers.filter(u => getUserDrawEligibility(u.phone, minRequiredForDraw).isEligible).length})
+                      ✅ Eligible ({luckyDrawUsers.filter(u => getUserDrawEligibility(u.phone, luckyDrawConfig).isEligible).length})
                     </button>
                     <button
                       type="button"
@@ -4460,7 +5309,7 @@ export const AdminPage = ({
                         drawEligibilityFilter === 'Ineligible' ? 'bg-amber-600 text-white shadow-xs' : 'text-stone-500'
                       }`}
                     >
-                      ⏳ Incomplete ({luckyDrawUsers.filter(u => !getUserDrawEligibility(u.phone, minRequiredForDraw).isEligible).length})
+                      ⏳ Incomplete ({luckyDrawUsers.filter(u => !getUserDrawEligibility(u.phone, luckyDrawConfig).isEligible).length})
                     </button>
                   </div>
 
@@ -4485,7 +5334,11 @@ export const AdminPage = ({
                       <th className="p-3.5">Golden Ticket #</th>
                       <th className="p-3.5">Customer / City</th>
                       <th className="p-3.5">Mobile (Login ID) & Password</th>
-                      <th className="p-3.5">Ordered Items ({minRequiredForDraw} Req.)</th>
+                      <th className="p-3.5">
+                        {isDrawAmountMode 
+                          ? `Total Spent (₹${drawMinOrderAmount.toLocaleString('en-IN')} Req.)`
+                          : `Ordered Items (${minRequiredForDraw} Req.)`}
+                      </th>
                       <th className="p-3.5">Eligibility</th>
                       <th className="p-3.5">Registered</th>
                       <th className="p-3.5 text-right">Actions</th>
@@ -4493,8 +5346,11 @@ export const AdminPage = ({
                   </thead>
                   <tbody className="divide-y divide-stone-200 bg-white">
                     {filteredDrawUsers.map((user) => {
-                      const { count, isEligible, remainingToUnlock, ordersCount } = getUserDrawEligibility(user.phone, minRequiredForDraw);
+                      const { count, totalSpent, isEligible, remainingAmountToUnlock, remainingItemsToUnlock, ordersCount } = getUserDrawEligibility(user.phone, luckyDrawConfig);
                       const isWinner = luckyDrawConfig.winner?.ticketNumber === user.ticketNumber;
+                      const progressPct = isDrawAmountMode
+                        ? Math.min(100, Math.round((totalSpent / (drawMinOrderAmount || 10000)) * 100))
+                        : Math.min(100, Math.round((count / (minRequiredForDraw || 3)) * 100));
 
                       return (
                         <tr key={user.id || user.phone} className={`hover:bg-amber-50/40 transition-colors ${isWinner ? 'bg-gold-50/80 font-bold' : ''}`}>
@@ -4525,18 +5381,20 @@ export const AdminPage = ({
 
                           <td className="p-3.5 whitespace-nowrap">
                             <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-stone-900">
-                                  {count} / {minRequiredForDraw} Products
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-extrabold text-stone-900 font-mono">
+                                  {isDrawAmountMode 
+                                    ? `₹${totalSpent.toLocaleString('en-IN')} / ₹${drawMinOrderAmount.toLocaleString('en-IN')}`
+                                    : `${count} / ${minRequiredForDraw} Products`}
                                 </span>
                                 <span className="text-[10px] text-stone-400">({ordersCount} Orders)</span>
                               </div>
-                              <div className="w-28 h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                              <div className="w-32 h-1.5 bg-stone-200 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full rounded-full transition-all ${
                                     isEligible ? 'bg-emerald-600' : 'bg-amber-500'
                                   }`}
-                                  style={{ width: `${Math.min(100, (count / minRequiredForDraw) * 100)}%` }}
+                                  style={{ width: `${progressPct}%` }}
                                 ></div>
                               </div>
                             </div>
@@ -4550,7 +5408,11 @@ export const AdminPage = ({
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
-                                <span>⏳ Need {remainingToUnlock} more</span>
+                                <span>
+                                  {isDrawAmountMode 
+                                    ? `⏳ Need ₹${remainingAmountToUnlock.toLocaleString('en-IN')} more`
+                                    : `⏳ Need ${remainingItemsToUnlock} more items`}
+                                </span>
                               </span>
                             )}
                           </td>
@@ -4564,8 +5426,12 @@ export const AdminPage = ({
                               href={`https://wa.me/91${user.phone}?text=${encodeURIComponent(
                                 `Namaste ${user.name} ji! 🌸\n\nYour Lucky Draw Ticket Number: *${user.ticketNumber}*\n\nStatus: ${
                                   isEligible
-                                    ? '✅ You have ordered ' + count + ' products and are fully ELIGIBLE for the giveaway draw!'
-                                    : '⏳ You have ordered ' + count + ' products. Order ' + remainingToUnlock + ' more products to enter the draw!'
+                                    ? isDrawAmountMode
+                                      ? `✅ You have shopped for ₹${totalSpent.toLocaleString('en-IN')} and are fully ELIGIBLE for the Mega Giveaway Draw!`
+                                      : `✅ You have ordered ${count} products and are fully ELIGIBLE for the giveaway draw!`
+                                    : isDrawAmountMode
+                                      ? `⏳ You have shopped for ₹${totalSpent.toLocaleString('en-IN')}. Shop for ₹${remainingAmountToUnlock.toLocaleString('en-IN')} more to enter the Mega Giveaway!`
+                                      : `⏳ You have ordered ${count} products. Order ${remainingItemsToUnlock} more products to enter the draw!`
                                 }\n\nCheck live updates at: Radhika Kurti Collection`
                               )}`}
                               target="_blank"

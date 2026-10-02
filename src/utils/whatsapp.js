@@ -32,7 +32,8 @@ export const buildOrderMessage = ({
   bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
-  appliedPromo = ''
+  appliedPromo = '',
+  freeGift = ''
 }) => {
   const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const itemsListText = cartItems.map((item, idx) => {
@@ -52,6 +53,9 @@ export const buildOrderMessage = ({
     discountLines.push(`• 🏷️ Promo Code (${appliedPromo}): -₹${couponDiscount.toLocaleString('en-IN')}`);
   } else if (discount > 0 && !(timerDiscount > 0) && !(bundleDiscount > 0)) {
     discountLines.push(`• Discount Applied: -₹${discount.toLocaleString('en-IN')}`);
+  }
+  if (freeGift) {
+    discountLines.push(`• 🎁 Unlocked Free Gift: *${freeGift}* (Included Free!)`);
   }
 
   const discountText = discountLines.length > 0 ? `${discountLines.join('\n')}\n` : '';
@@ -110,7 +114,8 @@ export const generateWhatsAppOrderUrl = ({
   bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
-  appliedPromo = ''
+  appliedPromo = '',
+  freeGift = ''
 }) => {
   const cleanPhone = cleanWhatsAppPhone(settings.whatsappNumber);
   const message = buildOrderMessage({ 
@@ -122,7 +127,8 @@ export const generateWhatsAppOrderUrl = ({
     bundleDiscount,
     timerDiscount,
     couponDiscount,
-    appliedPromo 
+    appliedPromo,
+    freeGift
   });
   const encodedMessage = encodeURIComponent(message);
   return {
@@ -143,7 +149,8 @@ export const generateTelegramOrderUrl = ({
   bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
-  appliedPromo = ''
+  appliedPromo = '',
+  freeGift = ''
 }) => {
   const cleanHandle = cleanTelegramHandle(settings.telegramUsername);
   const message = buildOrderMessage({ 
@@ -155,7 +162,8 @@ export const generateTelegramOrderUrl = ({
     bundleDiscount,
     timerDiscount,
     couponDiscount,
-    appliedPromo 
+    appliedPromo,
+    freeGift
   });
   const encodedMessage = encodeURIComponent(message);
   return {
@@ -195,7 +203,8 @@ export const generateOrderUrlByChannel = ({
   bundleDiscount = 0,
   timerDiscount = 0,
   couponDiscount = 0,
-  appliedPromo = ''
+  appliedPromo = '',
+  freeGift = ''
 }) => {
   const targetChannel = channel || settings.orderChannel || 'whatsapp';
   if (targetChannel === 'telegram') {
@@ -208,7 +217,8 @@ export const generateOrderUrlByChannel = ({
       bundleDiscount,
       timerDiscount,
       couponDiscount,
-      appliedPromo 
+      appliedPromo,
+      freeGift
     });
   }
   return generateWhatsAppOrderUrl({ 
@@ -220,7 +230,8 @@ export const generateOrderUrlByChannel = ({
     bundleDiscount,
     timerDiscount,
     couponDiscount,
-    appliedPromo 
+    appliedPromo,
+    freeGift
   });
 };
 

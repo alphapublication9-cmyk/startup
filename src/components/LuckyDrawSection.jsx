@@ -67,8 +67,7 @@ export const LuckyDrawSection = ({ onShopNow, settings = {} }) => {
     };
   }, []);
 
-  const minRequired = config.minProductsRequired || 3;
-  const eligibility = currentUser ? getUserDrawEligibility(currentUser.phone, minRequired) : null;
+  const eligibility = currentUser ? getUserDrawEligibility(currentUser.phone, config) : null;
   const prizes = config.prizes && config.prizes.length > 0 ? config.prizes : [
     {
       id: 'pz-1',
@@ -211,13 +210,19 @@ export const LuckyDrawSection = ({ onShopNow, settings = {} }) => {
 
             {/* Eligibility Rule Chip */}
             <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200/90 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-200 text-amber-950 flex items-center justify-center font-black text-sm shrink-0 shadow-2xs">
-                3+
+              <div className="w-9 h-9 rounded-xl bg-amber-200 text-amber-950 flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+                {config.eligibilityType === 'count' ? `${config.minProductsRequired || 3}+` : '₹'}
               </div>
               <div className="text-xs">
-                <strong className="text-stone-900 block font-bold">Eligibility Rule: Order Minimum 3 Products</strong>
+                <strong className="text-stone-900 block font-bold">
+                  {config.eligibilityType === 'count'
+                    ? `Eligibility Rule: Order Minimum ${config.minProductsRequired || 3} Products`
+                    : `Eligibility Rule: Minimum ₹${Number(config.minOrderAmount || 10000).toLocaleString('en-IN')} Order Value`}
+                </strong>
                 <span className="text-stone-600 text-[11px]">
-                  Place orders for at least 3 items with your mobile number to automatically qualify for the draw!
+                  {config.eligibilityType === 'count'
+                    ? `Place orders for at least ${config.minProductsRequired || 3} items with your mobile number to automatically qualify for the draw!`
+                    : `Shop for minimum ₹${Number(config.minOrderAmount || 10000).toLocaleString('en-IN')} with your mobile number to automatically qualify for the Grand Mega Giveaway!`}
                 </span>
               </div>
             </div>
@@ -275,7 +280,9 @@ export const LuckyDrawSection = ({ onShopNow, settings = {} }) => {
                     <div className="flex items-center justify-between text-xs font-bold text-stone-800">
                       <span>Orders Progress:</span>
                       <span className="font-black text-amber-900">
-                        {eligibility?.count || 0} / {minRequired} Items Ordered
+                        {eligibility?.eligibilityType === 'count'
+                          ? `${eligibility?.count || 0} / ${eligibility?.minProductsRequired || 3} Items Ordered`
+                          : `₹${(eligibility?.totalSpent || 0).toLocaleString('en-IN')} / ₹${(eligibility?.minOrderAmount || 10000).toLocaleString('en-IN')} Spent`}
                       </span>
                     </div>
 
@@ -284,7 +291,13 @@ export const LuckyDrawSection = ({ onShopNow, settings = {} }) => {
                         className={`h-full rounded-full transition-all duration-500 ${
                           eligibility?.isEligible ? 'bg-emerald-600' : 'bg-gradient-to-r from-amber-400 to-amber-500'
                         }`}
-                        style={{ width: `${Math.min(100, ((eligibility?.count || 0) / minRequired) * 100)}%` }}
+                        style={{
+                          width: `${
+                            eligibility?.eligibilityType === 'count'
+                              ? Math.min(100, (((eligibility?.count || 0) / (eligibility?.minProductsRequired || 3)) * 100))
+                              : Math.min(100, (((eligibility?.totalSpent || 0) / (eligibility?.minOrderAmount || 10000)) * 100))
+                          }%`
+                        }}
                       ></div>
                     </div>
 
@@ -295,7 +308,9 @@ export const LuckyDrawSection = ({ onShopNow, settings = {} }) => {
                         </span>
                       ) : (
                         <span className="text-amber-800 font-medium">
-                          ⏳ Order {eligibility?.remainingToUnlock || minRequired} more items to activate ticket
+                          {eligibility?.eligibilityType === 'count'
+                            ? `⏳ Order ${eligibility?.remainingItemsToUnlock || 3} more items to activate ticket`
+                            : `⏳ Order ₹${(eligibility?.remainingAmountToUnlock || 10000).toLocaleString('en-IN')} more to activate ticket`}
                         </span>
                       )}
                     </div>

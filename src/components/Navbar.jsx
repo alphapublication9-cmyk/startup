@@ -50,7 +50,8 @@ export const Navbar = ({
   onLogoutAdmin,
   products = [],
   onQuickView,
-  onScrollToCatalog
+  onScrollToCatalog,
+  onGoHome
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -157,8 +158,16 @@ export const Navbar = ({
             </button>
 
             {/* Boutique Brand Logo */}
-            <a href="#" className="flex items-center gap-2 sm:gap-2.5 min-w-0 overflow-hidden group">
-              <div className="w-9 h-9 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm">
+            <a 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                if (onGoHome) onGoHome();
+                else if (onScrollToCatalog) onScrollToCatalog();
+              }}
+              className="flex items-center gap-2 sm:gap-2.5 min-w-0 group cursor-pointer"
+            >
+              <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm">
                 <img 
                   src={settings?.logoUrl || "/logo.png"} 
                   alt={settings?.storeName || "RADHIKA KURTI COLLECTION"} 
@@ -166,10 +175,10 @@ export const Navbar = ({
                 />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="font-heading text-xs xs:text-sm sm:text-xl font-black tracking-wider sm:tracking-widest text-stone-900 leading-tight truncate">
+                <span className="font-heading text-xs xs:text-sm sm:text-lg lg:text-xl font-black tracking-wide sm:tracking-widest text-stone-900 leading-tight whitespace-nowrap">
                   {settings.storeName || "RADHIKA KURTI COLLECTION"}
                 </span>
-                <span className="text-[8px] sm:text-[10px] tracking-[0.2em] text-[#700b1d] uppercase font-extrabold truncate hidden xs:inline">
+                <span className="text-[8px] sm:text-[9px] tracking-[0.2em] text-[#700b1d] uppercase font-extrabold whitespace-nowrap hidden xs:inline">
                   LUXURY DESIGN • ETHNIC FASHION
                 </span>
               </div>
@@ -404,8 +413,8 @@ export const Navbar = ({
       </div>
 
       {/* Category Navigation Strip */}
-      <nav className="hidden md:block bg-white/90 border-t border-[#ebdcc7]/60 px-4 py-2">
-        <div className="container mx-auto flex items-center justify-center gap-6 overflow-x-auto scrollbar-none text-xs font-bold tracking-wider uppercase">
+      <nav className="hidden md:block bg-white/95 border-t border-[#ebdcc7]/60 px-4 py-2.5 overflow-hidden">
+        <div className="container mx-auto flex items-center justify-center gap-6 sm:gap-8 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden text-xs font-bold tracking-wider uppercase">
           {categoryNames.slice(0, 9).map((catName) => (
             <button
               key={catName}
@@ -413,7 +422,7 @@ export const Navbar = ({
                 onSelectCategory(catName);
                 if (onScrollToCatalog) onScrollToCatalog();
               }}
-              className={`py-1 transition-colors relative cursor-pointer ${
+              className={`py-1 transition-colors relative cursor-pointer whitespace-nowrap ${
                 selectedCategory.trim().toLowerCase() === catName.trim().toLowerCase()
                   ? 'text-[#700b1d] font-black' 
                   : 'text-stone-600 hover:text-[#700b1d]'

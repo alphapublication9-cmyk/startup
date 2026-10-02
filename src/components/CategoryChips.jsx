@@ -34,7 +34,7 @@ export const CategoryChips = ({ categories, selectedCategory, onSelectCategory, 
       </div>
 
       {/* Horizontal Pill Scroller */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden -mx-4 px-4 sm:mx-0 sm:px-0">
         {categoryList.map((cat) => {
           const isSelected = selectedCategory === cat.name;
           const count = getProductCount(cat.name);

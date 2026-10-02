@@ -19,6 +19,7 @@ import { recordCloudOrder } from '../utils/cloudSync';
 import { recordCustomerLead } from '../utils/customerDirectory';
 import { trackProductAction } from '../utils/productAnalytics';
 import { getCustomerAuthSession } from '../utils/luckyDraw';
+import { resolvePromoDetails } from '../utils/promoResolver';
 
 export const WhatsAppCheckoutModal = ({ 
   isOpen, 
@@ -56,12 +57,16 @@ export const WhatsAppCheckoutModal = ({
     } catch {}
   }
 
+  // Resolve Promo Code & Free Gift with Minimum Order Thresholds
+  const resolvedPromo = resolvePromoDetails(appliedPromo, [], subtotal);
+  const freeGift = checkoutPricing?.freeGift || (resolvedPromo?.isEligible ? resolvedPromo.freeGiftTitle : null);
+
   // Calculate coupon discount
   let couponDiscount = 0;
   if (checkoutPricing && typeof checkoutPricing.couponDiscount === 'number') {
     couponDiscount = checkoutPricing.couponDiscount;
-  } else if (appliedPromo) {
-    couponDiscount = Math.round(subtotal * 0.10);
+  } else if (resolvedPromo?.isEligible) {
+    couponDiscount = resolvedPromo.discountAmount || 0;
   }
 
   const bundleDiscount = checkoutPricing?.bundleDiscount || 0;
@@ -177,7 +182,8 @@ export const WhatsAppCheckoutModal = ({
       bundleDiscount,
       timerDiscount,
       couponDiscount,
-      appliedPromo
+      appliedPromo,
+      freeGift
     });
 
     // Save order record
@@ -192,6 +198,7 @@ export const WhatsAppCheckoutModal = ({
       timerDiscount,
       couponDiscount,
       promoCode: appliedPromo,
+      freeGift,
       channel: targetChannel,
       status: `${activeChannelName} Inquiry Sent`
     };
@@ -336,6 +343,13 @@ export const WhatsAppCheckoutModal = ({
                 <div className="flex justify-between items-center text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
                   <span>🏷️ Promo Discount {appliedPromo ? `(${appliedPromo})` : ''}</span>
                   <span>-₹{couponDiscount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
+              {freeGift && (
+                <div className="flex justify-between items-center text-[11px] font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                  <span>🎁 Unlocked Free Gift: {freeGift}</span>
+                  <span className="text-emerald-700 font-extrabold">FREE (₹0)</span>
                 </div>
               )}
 

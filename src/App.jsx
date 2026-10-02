@@ -20,13 +20,14 @@ import {
 
 import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
-import { StoryReels } from './components/StoryReels';
 import { EditorialCapsules } from './components/EditorialCapsules';
 import { CategoryChips } from './components/CategoryChips';
 import { ProductCard } from './components/ProductCard';
 import { ProductQuickView } from './components/ProductQuickView';
+import { ProductDetailPage } from './components/ProductDetailPage';
 import { CartDrawer } from './components/CartDrawer';
 import { WhatsAppCheckoutModal } from './components/WhatsAppCheckoutModal';
+import { LuckyDrawModal } from './components/LuckyDrawModal';
 import { SpinWheelModal } from './components/SpinWheelModal';
 import { CustomerAccountModal } from './components/CustomerAccountModal';
 import { CustomerReviews } from './components/CustomerReviews';
@@ -123,9 +124,30 @@ export function App() {
   const [isSpinWheelOpen, setIsSpinWheelOpen] = useState(false);
   const [isCustomerAccountOpen, setIsCustomerAccountOpen] = useState(false);
   const [checkoutPricing, setCheckoutPricing] = useState(null);
-  const [quickViewProduct, setQuickViewProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const catalogRef = useRef(null);
+
+  // Helper to open a product on its dedicated page
+  const handleOpenProduct = (product) => {
+    if (!product) return;
+    setSelectedProduct(product);
+    try {
+      window.location.hash = `product-${product.id}`;
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  // Helper to return to home storefront
+  const handleBackToStorefront = () => {
+    setSelectedProduct(null);
+    try {
+      if ((window.location.hash || '').startsWith('#product-')) {
+        window.history.pushState(null, '', window.location.pathname);
+      }
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Auto-Open Spin Wheel Popup on Website Load (1.5s delay)
   useEffect(() => {
@@ -144,23 +166,36 @@ export function App() {
     } catch {}
   }, []);
 
-  // URL Hash & Route Listener for Secret Admin Portal (/admin420 or /#admin420)
+  // URL Hash & Route Listener for Admin Portal & Direct Product Links (#product-123)
   useEffect(() => {
     const handleRouteChange = () => {
+      const hash = (window.location.hash || '').toLowerCase();
       if (checkIsAdminRoute()) {
         setCurrentView('admin');
+        setSelectedProduct(null);
       } else {
         setCurrentView('store');
+        if (hash.startsWith('#product-')) {
+          const prodId = hash.replace('#product-', '');
+          const found = products.find(p => String(p.id).toLowerCase() === prodId);
+          if (found) {
+            setSelectedProduct(found);
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }
+        } else {
+          setSelectedProduct(null);
+        }
       }
     };
 
+    handleRouteChange();
     window.addEventListener('hashchange', handleRouteChange);
     window.addEventListener('popstate', handleRouteChange);
     return () => {
       window.removeEventListener('hashchange', handleRouteChange);
       window.removeEventListener('popstate', handleRouteChange);
     };
-  }, []);
+  }, [products]);
 
   // Initial Data Fetching from IndexedDB & Cloud Sync
   useEffect(() => {
@@ -507,7 +542,7 @@ export function App() {
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenAdmin={handleOpenAdminPage}
-        onOpenLuckyDraw={() => document.getElementById('lucky-draw-section')?.scrollIntoView({ behavior: 'smooth' })}
+        onOpenLuckyDraw={() => setIsLuckyDrawOpen(true)}
         onOpenSpinWheel={() => setIsSpinWheelOpen(true)}
         onOpenCustomerAccount={() => setIsCustomerAccountOpen(true)}
         searchQuery={searchQuery}
@@ -519,193 +554,194 @@ export function App() {
         isAdminLoggedIn={isAdminLoggedIn}
         onLogoutAdmin={handleAdminLogout}
         products={products}
-        onQuickView={setQuickViewProduct}
+        onQuickView={handleOpenProduct}
+        onGoHome={handleBackToStorefront}
         onScrollToCatalog={scrollToCatalog}
       />
 
       {/* Main Content Body */}
       <main className="flex-1">
         
-        {/* Zara / Instagram Style Story Highlights Bar */}
-        <StoryReels 
-          onSelectCategory={(cat) => {
-            setSelectedCategory(cat);
-            scrollToCatalog();
-          }}
-        />
-
-        {/* Luxury Hero Banner */}
-        <HeroBanner
-          onExploreClick={scrollToCatalog}
-          settings={settings}
-        />
-
-        {/* Zara / H&M Haute Couture Lookbook Editorial Capsules */}
-        <EditorialCapsules 
-          onSelectCategory={(cat) => {
-            setSelectedCategory(cat);
-            scrollToCatalog();
-          }}
-        />
-
-        {/* In-Page Product Detail Studio (When a Product is Selected) */}
-        {quickViewProduct && (
-          <ProductQuickView
-            product={quickViewProduct}
-            onClose={() => setQuickViewProduct(null)}
+        {/* VIEW A: DEDICATED FULL-PAGE PRODUCT DETAIL STUDIO */}
+        {selectedProduct ? (
+          <ProductDetailPage
+            product={selectedProduct}
+            onBack={handleBackToStorefront}
             onAddToCart={handleAddToCart}
+            onSelectProduct={handleOpenProduct}
+            allProducts={products}
             settings={settings}
+            isWishlisted={wishlist.includes(selectedProduct.id)}
+            onToggleWishlist={handleToggleWishlist}
           />
-        )}
+        ) : (
+          /* VIEW B: MAIN CATALOG & LUXURY STOREFRONT */
+          <>
+            {/* Luxury Hero Banner */}
+            <HeroBanner
+              onExploreClick={scrollToCatalog}
+              settings={settings}
+            />
 
-        {/* Women Fashion Categories Selector */}
-        <CategoryChips
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          products={products}
-        />
+            {/* Zara / H&M Haute Couture Lookbook Editorial Capsules */}
+            <EditorialCapsules 
+              settings={settings}
+              onSelectCategory={(cat) => {
+                setSelectedCategory(cat);
+                scrollToCatalog();
+              }}
+            />
 
-        {/* Product Catalog Section */}
-        <section ref={catalogRef} className="container mx-auto px-4 py-8">
-          
-          {/* Section Header with Controls (Zara / H&M Minimalist Bar) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#ebdcc7]">
-            <div>
-              <h2 className="font-heading text-2xl sm:text-3xl font-bold text-stone-900 flex items-center gap-2">
-                <span>{selectedCategory === 'All' ? "Women's Designer Collection" : selectedCategory}</span>
-                <Sparkles size={20} className="text-gold-600" />
-              </h2>
-              <p className="text-xs sm:text-sm text-stone-500 mt-0.5 font-light">
-                Handcrafted designer Sarees, Kurtis, Anarkalis, Lehengas & Western silhouettes.
-              </p>
-            </div>
+            {/* Women Fashion Categories Selector */}
+            <CategoryChips
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+              products={products}
+            />
 
-            {/* View Switcher & Sort Controls */}
-            <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap">
+            {/* Product Catalog Section */}
+            <section ref={catalogRef} className="container mx-auto px-4 py-8">
               
-              {/* Grid Switcher (2-Column Editorial vs 4-Column Dense) */}
-              <div className="hidden sm:flex items-center bg-white border border-[#ebdcc7] rounded-xl p-1 shadow-xs">
-                <button
-                  type="button"
-                  onClick={() => setGridLayout('grid-4')}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                    gridLayout === 'grid-4' ? 'bg-brand-900 text-gold-200 shadow-xs' : 'text-stone-400 hover:text-stone-800'
-                  }`}
-                  title="Dense Grid View"
-                >
-                  <LayoutGrid size={15} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGridLayout('grid-2')}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                    gridLayout === 'grid-2' ? 'bg-brand-900 text-gold-200 shadow-xs' : 'text-stone-400 hover:text-stone-800'
-                  }`}
-                  title="Editorial Lookbook View"
-                >
-                  <Grid2X2 size={15} />
-                </button>
+              {/* Section Header with Controls (Zara / H&M Minimalist Bar) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#ebdcc7]">
+                <div>
+                  <h2 className="font-heading text-2xl sm:text-3xl font-bold text-stone-900 flex items-center gap-2">
+                    <span>{selectedCategory === 'All' ? "Women's Designer Collection" : selectedCategory}</span>
+                    <Sparkles size={20} className="text-gold-600" />
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-500 mt-0.5 font-light">
+                    Handcrafted designer Sarees, Kurtis, Anarkalis, Lehengas & Western silhouettes.
+                  </p>
+                </div>
+
+                {/* View Switcher & Sort Controls */}
+                <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap">
+                  
+                  {/* Grid Switcher (2-Column Editorial vs 4-Column Dense) */}
+                  <div className="hidden sm:flex items-center bg-white border border-[#ebdcc7] rounded-xl p-1 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setGridLayout('grid-4')}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        gridLayout === 'grid-4' ? 'bg-brand-900 text-gold-200 shadow-xs' : 'text-stone-400 hover:text-stone-800'
+                      }`}
+                      title="Dense Grid View"
+                    >
+                      <LayoutGrid size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGridLayout('grid-2')}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        gridLayout === 'grid-2' ? 'bg-brand-900 text-gold-200 shadow-xs' : 'text-stone-400 hover:text-stone-800'
+                      }`}
+                      title="Editorial Lookbook View"
+                    >
+                      <Grid2X2 size={15} />
+                    </button>
+                  </div>
+
+                  {/* Sort Dropdown */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-stone-500 font-semibold flex items-center gap-1">
+                      <ArrowUpDown size={13} /> Sort:
+                    </span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="text-xs font-semibold bg-white border border-[#ebdcc7] text-stone-800 rounded-xl px-3 py-1.5 focus:outline-none focus:border-brand-700 shadow-xs cursor-pointer"
+                    >
+                      <option value="price-low">🔥 Lowest Price First (Low to High)</option>
+                      <option value="popular">Popular & Top Rated</option>
+                      <option value="price-high">Price: High to Low (Luxury Edition)</option>
+                      <option value="discount">Biggest Discount & Offers</option>
+                    </select>
+                  </div>
+
+                </div>
               </div>
 
-              {/* Sort Dropdown */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-stone-500 font-semibold flex items-center gap-1">
-                  <ArrowUpDown size={13} /> Sort:
-                </span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="text-xs font-semibold bg-white border border-[#ebdcc7] text-stone-800 rounded-xl px-3 py-1.5 focus:outline-none focus:border-brand-700 shadow-xs cursor-pointer"
-                >
-                  <option value="price-low">🔥 Lowest Price First (Low to High)</option>
-                  <option value="popular">Popular & Top Rated</option>
-                  <option value="price-high">Price: High to Low (Luxury Edition)</option>
-                  <option value="discount">Biggest Discount & Offers</option>
-                </select>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Active Search / Filter Pill */}
-          {(searchQuery || selectedCategory !== 'All') && (
-            <div className="flex items-center gap-2 mb-6 bg-gold-50/80 border border-gold-300/60 p-2.5 rounded-2xl text-xs text-stone-700">
-              <span className="font-bold text-gold-900">Active Filter:</span>
-              {selectedCategory !== 'All' && (
-                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-gold-200 font-semibold">
-                  Category: <strong>{selectedCategory}</strong>
-                </span>
+              {/* Active Search / Filter Pill */}
+              {(searchQuery || selectedCategory !== 'All') && (
+                <div className="flex items-center gap-2 mb-6 bg-gold-50/80 border border-gold-300/60 p-2.5 rounded-2xl text-xs text-stone-700">
+                  <span className="font-bold text-gold-900">Active Filter:</span>
+                  {selectedCategory !== 'All' && (
+                    <span className="bg-white px-2.5 py-0.5 rounded-lg border border-gold-200 font-semibold">
+                      Category: <strong>{selectedCategory}</strong>
+                    </span>
+                  )}
+                  {searchQuery && (
+                    <span className="bg-white px-2.5 py-0.5 rounded-lg border border-gold-200 font-semibold">
+                      Search: <strong>"{searchQuery}"</strong>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('All');
+                      setSearchQuery('');
+                    }}
+                    className="ml-auto flex items-center gap-1 text-rose-700 hover:text-rose-900 font-bold hover:underline cursor-pointer"
+                  >
+                    <FilterX size={14} />
+                    <span>Clear Filters</span>
+                  </button>
+                </div>
               )}
-              {searchQuery && (
-                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-gold-200 font-semibold">
-                  Search: <strong>"{searchQuery}"</strong>
-                </span>
+
+              {/* Products Grid (Responsive Zara / H&M Catalog) */}
+              {filteredProducts.length === 0 ? (
+                <div className="bg-white rounded-3xl p-12 text-center border border-[#ebdcc7] shadow-sm space-y-4 my-6">
+                  <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto text-stone-400">
+                    <Search size={32} />
+                  </div>
+                  <h3 className="font-serif text-lg font-bold text-stone-800">
+                    No Items Match Your Selection
+                  </h3>
+                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                    Try searching for different keywords, clear category filters, or explore all women's fashion items.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('All');
+                      setSearchQuery('');
+                    }}
+                    className="px-6 py-2.5 royal-maroon-bg text-gold-100 text-xs font-bold rounded-full shadow-md hover:opacity-95 transition-all cursor-pointer"
+                  >
+                    Show All Items
+                  </button>
+                </div>
+              ) : (
+                <div className={
+                  gridLayout === 'grid-2'
+                    ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-6 sm:gap-8"
+                    : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
+                }>
+                  {filteredProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onAddToCart={handleAddToCart}
+                      onQuickView={handleOpenProduct}
+                      settings={settings}
+                      isWishlisted={wishlist.includes(product.id)}
+                      onToggleWishlist={handleToggleWishlist}
+                    />
+                  ))}
+                </div>
               )}
-              <button
-                onClick={() => {
-                  setSelectedCategory('All');
-                  setSearchQuery('');
-                }}
-                className="ml-auto flex items-center gap-1 text-rose-700 hover:text-rose-900 font-bold hover:underline cursor-pointer"
-              >
-                <FilterX size={14} />
-                <span>Clear Filters</span>
-              </button>
-            </div>
-          )}
 
-          {/* Products Grid (Responsive Zara / H&M Catalog) */}
-          {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border border-[#ebdcc7] shadow-sm space-y-4 my-6">
-              <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto text-stone-400">
-                <Search size={32} />
-              </div>
-              <h3 className="font-serif text-lg font-bold text-stone-800">
-                No Items Match Your Selection
-              </h3>
-              <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                Try searching for different keywords, clear category filters, or explore all women's fashion items.
-              </p>
-              <button
-                onClick={() => {
-                  setSelectedCategory('All');
-                  setSearchQuery('');
-                }}
-                className="px-6 py-2.5 royal-maroon-bg text-gold-100 text-xs font-bold rounded-full shadow-md hover:opacity-95 transition-all cursor-pointer"
-              >
-                Show All Items
-              </button>
-            </div>
-          ) : (
-            <div className={
-              gridLayout === 'grid-2'
-                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-6 sm:gap-8"
-                : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
-            }>
-              {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onAddToCart={handleAddToCart}
-                  onQuickView={setQuickViewProduct}
-                  settings={settings}
-                  isWishlisted={wishlist.includes(product.id)}
-                  onToggleWishlist={handleToggleWishlist}
-                />
-              ))}
-            </div>
-          )}
+            </section>
 
-        </section>
-
-        {/* Customer Social Proof & Verified Reviews */}
-        <CustomerReviews reviews={reviews} />
+            {/* Customer Social Proof & Verified Reviews */}
+            <CustomerReviews reviews={reviews} />
+          </>
+        )}
 
       </main>
 
-      {/* Floating WhatsApp / Telegram Quick Action Button (Desktop Only - Mobile has Bottom Nav) */}
-      {!isCartOpen && !isCheckoutOpen && !quickViewProduct && (
+      {/* Floating WhatsApp / Telegram Quick Action Button (Desktop Only - When on Storefront) */}
+      {!isCartOpen && !isCheckoutOpen && !selectedProduct && (
         <a
           href={getDirectChannelLink(settings, `Hello ${settings.storeName || 'Radhika Kurti Collection'}! I would like to inquire about your Women Fashion Collection`)}
           target="_blank"
@@ -763,6 +799,14 @@ export function App() {
         }}
       />
 
+      {/* 🎁 Festive Lucky Draw Modal */}
+      <LuckyDrawModal
+        isOpen={isLuckyDrawOpen}
+        onClose={() => setIsLuckyDrawOpen(false)}
+        onShopNow={scrollToCatalog}
+        settings={settings}
+      />
+
       {/* 🎡 VIP Spin the Wheel Modal */}
       <SpinWheelModal
         isOpen={isSpinWheelOpen}
@@ -814,7 +858,10 @@ export function App() {
         onOpenCart={() => setIsCartOpen(true)}
         onOpenSpinWheel={() => setIsSpinWheelOpen(true)}
         onOpenCustomerAccount={() => setIsCustomerAccountOpen(true)}
-        onScrollToCatalog={scrollToCatalog}
+        onScrollToCatalog={() => {
+          handleBackToStorefront();
+          scrollToCatalog();
+        }}
         settings={settings}
       />
 

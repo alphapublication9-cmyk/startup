@@ -113,7 +113,7 @@ export const CustomerAccountModal = ({
   };
 
   const drawConfig = getLuckyDrawConfig();
-  const eligibility = sessionUser ? getUserDrawEligibility(sessionUser.phone, drawConfig.minProductsRequired || 3) : null;
+  const eligibility = sessionUser ? getUserDrawEligibility(sessionUser.phone, drawConfig) : null;
 
   return (
     <AnimatePresence>
@@ -234,14 +234,20 @@ export const CustomerAccountModal = ({
                             </span>
                           ) : (
                             <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
-                              ⏳ Need {eligibility.remainingToUnlock} more
+                              {eligibility.eligibilityType === 'count'
+                                ? `⏳ Need ${eligibility.remainingItemsToUnlock} more items`
+                                : `⏳ Need ₹${eligibility.remainingAmountToUnlock.toLocaleString('en-IN')} more`}
                             </span>
                           )}
                         </div>
 
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-[11px] font-bold text-stone-700">
-                            <span>{eligibility.count} / {eligibility.minRequired} Products Ordered</span>
+                            <span>
+                              {eligibility.eligibilityType === 'count'
+                                ? `${eligibility.count} / ${eligibility.minProductsRequired || 3} Items Ordered`
+                                : `₹${eligibility.totalSpent.toLocaleString('en-IN')} / ₹${(eligibility.minOrderAmount || 10000).toLocaleString('en-IN')} Spent`}
+                            </span>
                             <span>{eligibility.ordersCount} Orders Placed</span>
                           </div>
                           <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden border border-stone-200">
@@ -249,7 +255,13 @@ export const CustomerAccountModal = ({
                               className={`h-full rounded-full transition-all duration-500 ${
                                 eligibility.isEligible ? 'bg-emerald-600' : 'bg-gradient-to-r from-amber-400 to-amber-500'
                               }`}
-                              style={{ width: `${Math.min(100, (eligibility.count / eligibility.minRequired) * 100)}%` }}
+                              style={{ 
+                                width: `${
+                                  eligibility.eligibilityType === 'count'
+                                    ? Math.min(100, ((eligibility.count / (eligibility.minProductsRequired || 3)) * 100))
+                                    : Math.min(100, ((eligibility.totalSpent / (eligibility.minOrderAmount || 10000)) * 100))
+                                }%` 
+                              }}
                             ></div>
                           </div>
                         </div>

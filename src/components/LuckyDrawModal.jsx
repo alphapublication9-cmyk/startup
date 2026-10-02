@@ -72,8 +72,10 @@ export const LuckyDrawModal = ({ isOpen, onClose, onShopNow, settings = {} }) =>
 
   if (!isOpen) return null;
 
-  const minRequired = config.minProductsRequired || 3;
-  const eligibility = currentUser ? getUserDrawEligibility(currentUser.phone, minRequired) : null;
+  const eligibility = currentUser ? getUserDrawEligibility(currentUser.phone, config) : null;
+  const isAmountMode = (config.eligibilityType || 'amount') === 'amount';
+  const minRequiredAmount = Number(config.minOrderAmount || 10000);
+  const minRequiredCount = Number(config.minProductsRequired || 3);
   const prizes = config.prizes || [];
   const currentPrize = prizes[activePrizeIndex] || prizes[0];
 
@@ -240,12 +242,18 @@ export const LuckyDrawModal = ({ isOpen, onClose, onShopNow, settings = {} }) =>
           <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-amber-950">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center shrink-0 font-black text-sm">
-                3+
+                {isAmountMode ? '₹' : `${minRequiredCount}+`}
               </div>
               <div>
-                <p className="font-bold text-xs">Eligibility Rule: Order Minimum {minRequired} Products</p>
+                <p className="font-bold text-xs">
+                  {isAmountMode
+                    ? `Eligibility Rule: Minimum ₹${minRequiredAmount.toLocaleString('en-IN')} Order Value`
+                    : `Eligibility Rule: Order Minimum ${minRequiredCount} Products`}
+                </p>
                 <p className="text-[11px] text-stone-600">
-                  Har customer jo kam se kam {minRequired} items order karega, uska ticket automatically Mega Draw ke liye qualify ho jayega!
+                  {isAmountMode
+                    ? `Har customer jo kam se kam ₹${minRequiredAmount.toLocaleString('en-IN')} ki shopping karega, uska ticket automatically Mega Draw ke liye qualify ho jayega!`
+                    : `Har customer jo kam se kam ${minRequiredCount} items order karega, uska ticket automatically Mega Draw ke liye qualify ho jayega!`}
                 </p>
               </div>
             </div>
@@ -293,8 +301,10 @@ export const LuckyDrawModal = ({ isOpen, onClose, onShopNow, settings = {} }) =>
                           <ShoppingBag size={14} />
                           <span>Orders Progress</span>
                         </span>
-                        <span className={eligibility.isEligible ? 'text-emerald-400 font-black' : 'text-amber-300'}>
-                          {eligibility.count} / {minRequired} Items Ordered
+                        <span className={eligibility.isEligible ? 'text-emerald-400 font-black' : 'text-amber-300 font-mono'}>
+                          {isAmountMode
+                            ? `₹${eligibility.totalSpent.toLocaleString('en-IN')} / ₹${minRequiredAmount.toLocaleString('en-IN')}`
+                            : `${eligibility.count} / ${minRequiredCount} Items`}
                         </span>
                       </div>
 
@@ -304,7 +314,13 @@ export const LuckyDrawModal = ({ isOpen, onClose, onShopNow, settings = {} }) =>
                           className={`h-full rounded-full transition-all duration-700 ${
                             eligibility.isEligible ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : 'bg-gradient-to-r from-amber-400 to-gold-400'
                           }`}
-                          style={{ width: `${Math.min(100, (eligibility.count / minRequired) * 100)}%` }}
+                          style={{ 
+                            width: `${
+                              isAmountMode
+                                ? Math.min(100, ((eligibility.totalSpent / (minRequiredAmount || 10000)) * 100))
+                                : Math.min(100, ((eligibility.count / (minRequiredCount || 3)) * 100))
+                            }%` 
+                          }}
                         ></div>
                       </div>
 
@@ -317,7 +333,9 @@ export const LuckyDrawModal = ({ isOpen, onClose, onShopNow, settings = {} }) =>
                         ) : (
                           <div className="flex items-center justify-between w-full gap-2">
                             <span className="text-[11px] text-amber-200">
-                              Order <strong>{eligibility.remainingToUnlock} more product(s)</strong> to activate your entry!
+                              {isAmountMode
+                                ? `Shop for ₹${eligibility.remainingAmountToUnlock.toLocaleString('en-IN')} more to activate entry!`
+                                : `Order ${eligibility.remainingItemsToUnlock} more product(s) to activate entry!`}
                             </span>
                             <button
                               onClick={() => {

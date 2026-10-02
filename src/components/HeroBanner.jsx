@@ -2,14 +2,23 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, RefreshCw, Crown, Heart, Send } from 'lucide-react';
 import { getDirectChannelLink } from '../utils/whatsapp';
+import { normalizeImageUrl } from '../utils/imageUrl';
+import { DEFAULT_HERO_BANNER } from '../data/initialSettings';
 
-export const HeroBanner = ({ onExploreClick, settings }) => {
+export const HeroBanner = ({ onExploreClick, settings = {} }) => {
   const isTelegram = settings.orderChannel === 'telegram';
   const channelLabel = isTelegram ? 'Telegram' : 'WhatsApp';
   const directCatalogUrl = getDirectChannelLink(
     settings,
     `Hello ${settings.storeName || 'Radhika Kurti Collection'}! I would like to see your latest festive Kurti & ethnic collection catalog.`
   );
+
+  const hero = {
+    ...DEFAULT_HERO_BANNER,
+    ...(settings.heroBanner || {})
+  };
+
+  const heroImg = normalizeImageUrl(hero.featuredCardImage) || DEFAULT_HERO_BANNER.featuredCardImage;
 
   return (
     <div className="relative overflow-hidden mb-8 md:mb-12">
@@ -43,23 +52,27 @@ export const HeroBanner = ({ onExploreClick, settings }) => {
             className="lg:col-span-7 space-y-3.5 sm:space-y-6 text-center lg:text-left z-10"
           >
             {/* Top Pill */}
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full bg-white/95 border border-amber-300/80 text-amber-900 text-[10px] sm:text-xs md:text-sm font-bold tracking-wide sm:tracking-wider uppercase shadow-xs backdrop-blur-md max-w-full cursor-default"
-            >
-              <Sparkles size={13} className="text-amber-600 animate-spin shrink-0" style={{ animationDuration: '6s' }} />
-              <span className="truncate">Spring/Summer 2026 • Luxury Collection</span>
-            </motion.div>
+            {hero.tag && (
+              <motion.div 
+                whileHover={{ scale: 1.05 }}
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full bg-white/95 border border-amber-300/80 text-amber-900 text-[10px] sm:text-xs md:text-sm font-bold tracking-wide sm:tracking-wider uppercase shadow-xs backdrop-blur-md max-w-full cursor-default"
+              >
+                <Sparkles size={13} className="text-amber-600 animate-spin shrink-0" style={{ animationDuration: '6s' }} />
+                <span className="truncate">{hero.tag}</span>
+              </motion.div>
+            )}
 
             {/* Main Headline */}
             <h1 className="font-heading text-2xl xs:text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight text-stone-900">
-              Grace & Timeless <br className="hidden sm:inline" />
-              <span className="gold-gradient-text italic font-bold">Women's Couture</span>
+              {hero.heading || "Grace & Timeless"} <br className="hidden sm:inline" />
+              {hero.headingAccent && (
+                <span className="gold-gradient-text italic font-bold"> {hero.headingAccent}</span>
+              )}
             </h1>
 
             {/* Description */}
             <p className="text-stone-600 text-xs sm:text-base lg:text-lg max-w-xl mx-auto lg:mx-0 font-normal leading-relaxed">
-              Discover authentic handcrafted Lucknowi Chikankari, Banarasi Pure Silk Sarees, and breathable Jaipur Cotton Kurtis. Add to cart & place direct instant orders on {channelLabel}.
+              {hero.description || `Discover authentic handcrafted Lucknowi Chikankari, Banarasi Pure Silk Sarees, and breathable Jaipur Cotton Kurtis. Add to cart & place direct instant orders on ${channelLabel}.`}
             </p>
 
             {/* CTAs */}
@@ -70,7 +83,7 @@ export const HeroBanner = ({ onExploreClick, settings }) => {
                 onClick={onExploreClick}
                 className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-[#700b1d] via-[#540614] to-[#38020a] hover:from-[#850e24] hover:to-[#4a040e] text-gold-100 font-extrabold text-sm sm:text-base rounded-full shadow-lg shadow-rose-950/25 border border-gold-400/40 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer group"
               >
-                <span>Shop Collection</span>
+                <span>{hero.primaryCtaText || "Shop Collection"}</span>
                 <ArrowRight size={18} className="text-gold-300 group-hover:translate-x-1 transition-transform" />
               </motion.button>
 
@@ -89,13 +102,13 @@ export const HeroBanner = ({ onExploreClick, settings }) => {
                 ) : (
                   <MessageCircle size={18} className="text-emerald-600" />
                 )}
-                <span>{channelLabel} Catalog</span>
+                <span>{hero.secondaryCtaText || `${channelLabel} Catalog`}</span>
               </motion.a>
             </div>
 
             {/* Tagline */}
             <div className="pt-2 text-xs text-[#700b1d] font-bold tracking-wide">
-              ⚡ Instant {channelLabel} Confirmation • Fast Pan-India Dispatch • 7-Day Easy Exchange
+              {hero.trustTagline || `⚡ Instant ${channelLabel} Confirmation • Fast Pan-India Dispatch • 7-Day Easy Exchange`}
             </div>
           </motion.div>
 
@@ -114,30 +127,42 @@ export const HeroBanner = ({ onExploreClick, settings }) => {
                 className="relative rounded-3xl overflow-hidden border-4 border-white shadow-2xl group"
               >
                 <img
-                  src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80"
-                  alt="Festive Anarkali Kurti"
+                  src={heroImg}
+                  alt={hero.featuredCardTitle || "Featured Luxury Kurti"}
                   className="w-full h-80 sm:h-96 object-cover object-top group-hover:scale-108 transition-transform duration-700"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80";
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-stone-900/70 via-transparent to-transparent"></div>
                 
                 {/* Floating Discount Tag */}
-                <motion.div 
-                  animate={{ y: [0, -4, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute top-3.5 right-3.5 bg-gradient-to-r from-[#700b1d] to-[#4a040e] text-gold-100 px-3 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-lg border border-gold-400/50"
-                >
-                  Up To 50% OFF
-                </motion.div>
+                {hero.featuredCardDiscount && (
+                  <motion.div 
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute top-3.5 right-3.5 bg-gradient-to-r from-[#700b1d] to-[#4a040e] text-gold-100 px-3 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-lg border border-gold-400/50"
+                  >
+                    {hero.featuredCardDiscount}
+                  </motion.div>
+                )}
 
                 {/* Floating Bottom Card */}
                 <div className="absolute bottom-3 left-3 right-3 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-[#ebdcc7] shadow-lg flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] text-[#700b1d] font-extrabold uppercase tracking-widest">Trending Now</p>
-                    <p className="text-sm font-extrabold text-stone-900">Chanderi Zari Anarkalis</p>
+                    <p className="text-[10px] text-[#700b1d] font-extrabold uppercase tracking-widest">
+                      {hero.featuredCardTag || "Trending Now"}
+                    </p>
+                    <p className="text-sm font-extrabold text-stone-900">
+                      {hero.featuredCardTitle || "Chanderi Zari Anarkalis"}
+                    </p>
                   </div>
-                  <span className="text-xs font-extrabold bg-rose-50 text-[#700b1d] px-3 py-1 rounded-full border border-rose-200">
-                    From ₹999
-                  </span>
+                  {hero.featuredCardPrice && (
+                    <span className="text-xs font-extrabold bg-rose-50 text-[#700b1d] px-3 py-1 rounded-full border border-rose-200">
+                      {hero.featuredCardPrice}
+                    </span>
+                  )}
                 </div>
               </motion.div>
             </div>
