@@ -32,6 +32,7 @@ import {
 import { generateSingleProductChannelUrl, getDirectChannelLink } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
 import { trackProductAction } from '../utils/productAnalytics';
+import { recordCloudOrder } from '../utils/cloudSync';
 import { ProductCard } from './ProductCard';
 
 export const ProductDetailPage = ({ 
@@ -76,6 +77,7 @@ export const ProductDetailPage = ({
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (product && product.id) {
+      trackProductAction(product.id, product, 'view');
       trackProductAction(product.id, product, 'quick_view');
     }
   }, [product?.id]);
@@ -100,6 +102,27 @@ export const ProductDetailPage = ({
 
   const handleDirectOrder = () => {
     trackProductAction(product.id, product, 'order');
+    try {
+      const quickOrder = {
+        id: `ORD-WA-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        customer: {
+          name: 'Direct Channel Visitor',
+          phone: 'Inquiry on ' + channelLabel,
+          address: 'Product Detail Page 1-Click Order',
+          paymentMethod: 'Prepaid / ' + channelLabel
+        },
+        items: [{
+          ...product,
+          selectedSize,
+          quantity
+        }],
+        totalAmount: product.price * quantity,
+        grandTotal: product.price * quantity,
+        status: `${channelLabel} Inquiry Sent`
+      };
+      recordCloudOrder(quickOrder);
+    } catch {}
     const url = generateSingleProductChannelUrl({ product, selectedSize, settings });
     window.open(url, '_blank');
   };

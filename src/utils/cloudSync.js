@@ -637,6 +637,11 @@ export const subscribeToCloudChanges = (callbacks = {}) => {
           callbacks.onOrdersChange(fresh);
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'analytics' }, async () => {
+        if (callbacks.onAnalyticsChange) {
+          callbacks.onAnalyticsChange();
+        }
+      })
       .subscribe();
 
     return () => {
@@ -834,4 +839,35 @@ DROP POLICY IF EXISTS "Allow public read on analytics" ON public.analytics;
 DROP POLICY IF EXISTS "Allow all on analytics" ON public.analytics;
 CREATE POLICY "Allow public read on analytics" ON public.analytics FOR SELECT USING (true);
 CREATE POLICY "Allow all on analytics" ON public.analytics FOR ALL USING (true) WITH CHECK (true);
+
+-- 11. Atomic Increment Stored Function for Ad Traffic & Product Analytics
+CREATE OR REPLACE FUNCTION public.increment_analytics(
+  p_product_id TEXT,
+  p_action TEXT,
+  p_name TEXT DEFAULT '',
+  p_category TEXT DEFAULT ''
+)
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO public.analytics (product_id, name, category, views, quick_views, cart_adds, orders, updated_at)
+  VALUES (
+    p_product_id,
+    p_name,
+    p_category,
+    CASE WHEN p_action IN ('view', 'quick_view') THEN 1 ELSE 0 END,
+    CASE WHEN p_action = 'quick_view' THEN 1 ELSE 0 END,
+    CASE WHEN p_action = 'cart_add' THEN 1 ELSE 0 END,
+    CASE WHEN p_action = 'order' THEN 1 ELSE 0 END,
+    now()
+  )
+  ON CONFLICT (product_id) DO UPDATE SET
+    views = public.analytics.views + (CASE WHEN p_action IN ('view', 'quick_view') THEN 1 ELSE 0 END),
+    quick_views = public.analytics.quick_views + (CASE WHEN p_action = 'quick_view' THEN 1 ELSE 0 END),
+    cart_adds = public.analytics.cart_adds + (CASE WHEN p_action = 'cart_add' THEN 1 ELSE 0 END),
+    orders = public.analytics.orders + (CASE WHEN p_action = 'order' THEN 1 ELSE 0 END),
+    name = COALESCE(NULLIF(p_name, ''), public.analytics.name),
+    category = COALESCE(NULLIF(p_category, ''), public.analytics.category),
+    updated_at = now();
+END;
+$$ LANGUAGE plpgsql;
 `;

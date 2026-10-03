@@ -2,7 +2,7 @@ import { idbGet, idbSet } from './indexedDBStorage';
 import { getSupabase } from './supabaseClient';
 
 const PRODUCT_ANALYTICS_KEY = 'aura_kurti_product_analytics_v2';
-// Per-session throttle: same product view counted max once per 5 minutes
+// Per-session throttle: same product view counted max once per 45 seconds per session
 const _viewThrottle = {};
 
 /**
@@ -35,7 +35,7 @@ export const saveStoredProductAnalytics = (data) => {
 
 /**
  * Fetch analytics from Supabase and merge into localStorage
- * Returns merged map
+ * Returns merged map with true aggregated counts
  */
 export const fetchAndMergeCloudAnalytics = async () => {
   try {
@@ -46,24 +46,32 @@ export const fetchAndMergeCloudAnalytics = async () => {
       .from('analytics')
       .select('product_id, views, quick_views, cart_adds, orders, name, category, updated_at');
 
-    if (error || !data) return getStoredProductAnalytics();
+    if (error || !data) {
+      console.warn("Supabase analytics fetch error:", error?.message);
+      return getStoredProductAnalytics();
+    }
 
     const local = getStoredProductAnalytics();
 
-    // Merge: take MAX of local vs cloud for each counter (prevents reset on other device)
+    // Cloud is source of truth for cross-device aggregates
     for (const row of data) {
       const pId = String(row.product_id);
       const localStat = local[pId] || {};
+      const cloudViews = Number(row.views || 0);
+      const cloudQuickViews = Number(row.quick_views || 0);
+      const cloudCartAdds = Number(row.cart_adds || 0);
+      const cloudOrders = Number(row.orders || 0);
+
       local[pId] = {
         ...localStat,
         id: pId,
         name: row.name || localStat.name || '',
         category: row.category || localStat.category || '',
-        views: Math.max(Number(localStat.views || 0), Number(row.views || 0)),
-        quickViews: Math.max(Number(localStat.quickViews || 0), Number(row.quick_views || 0)),
-        cartAdds: Math.max(Number(localStat.cartAdds || 0), Number(row.cart_adds || 0)),
-        orders: Math.max(Number(localStat.orders || 0), Number(row.orders || 0)),
-        lastActionAt: localStat.lastActionAt || row.updated_at || null,
+        views: Math.max(Number(localStat.views || 0), cloudViews),
+        quickViews: Math.max(Number(localStat.quickViews || 0), cloudQuickViews),
+        cartAdds: Math.max(Number(localStat.cartAdds || 0), cloudCartAdds),
+        orders: Math.max(Number(localStat.orders || 0), cloudOrders),
+        lastActionAt: row.updated_at || localStat.lastActionAt || null,
         history: localStat.history || []
       };
     }
@@ -77,7 +85,64 @@ export const fetchAndMergeCloudAnalytics = async () => {
 };
 
 /**
- * Track an interaction on a product
+ * Increment cloud analytics count atomically on Supabase
+ */
+const syncIncrementToCloud = async (pId, product, actionType) => {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const prodName = product.name || '';
+  const prodCat = product.category || '';
+
+  try {
+    // 1. Try Supabase RPC 'increment_analytics' (if configured in Postgres)
+    const { error: rpcError } = await supabase.rpc('increment_analytics', {
+      p_product_id: pId,
+      p_action: actionType,
+      p_name: prodName,
+      p_category: prodCat
+    });
+
+    if (!rpcError) return; // RPC succeeded!
+  } catch {
+    // RPC failed or not present, fall through to fallback
+  }
+
+  // 2. Resilient fallback: Fetch current cloud row, increment, and upsert
+  try {
+    const { data: currentCloudRow } = await supabase
+      .from('analytics')
+      .select('views, quick_views, cart_adds, orders, name, category')
+      .eq('product_id', pId)
+      .maybeSingle();
+
+    const isView = actionType === 'view' || actionType === 'quick_view';
+    const isQuickView = actionType === 'quick_view';
+    const isCartAdd = actionType === 'cart_add';
+    const isOrder = actionType === 'order';
+
+    const newViews = (Number(currentCloudRow?.views) || 0) + (isView ? 1 : 0);
+    const newQuickViews = (Number(currentCloudRow?.quick_views) || 0) + (isQuickView ? 1 : 0);
+    const newCartAdds = (Number(currentCloudRow?.cart_adds) || 0) + (isCartAdd ? 1 : 0);
+    const newOrders = (Number(currentCloudRow?.orders) || 0) + (isOrder ? 1 : 0);
+
+    await supabase.from('analytics').upsert({
+      product_id: pId,
+      views: newViews,
+      quick_views: newQuickViews,
+      cart_adds: newCartAdds,
+      orders: newOrders,
+      name: prodName || currentCloudRow?.name || '',
+      category: prodCat || currentCloudRow?.category || '',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'product_id' });
+  } catch (err) {
+    console.warn("Cloud analytics sync fallback error:", err);
+  }
+};
+
+/**
+ * Track an interaction on a product (views, quick views, cart additions, orders)
  * @param {string|number} productId 
  * @param {object} product - optional product info (name, category, price, image)
  * @param {'view'|'quick_view'|'cart_add'|'order'} actionType 
@@ -86,11 +151,11 @@ export const trackProductAction = (productId, product = {}, actionType = 'view')
   if (!productId) return;
   const pId = String(productId);
 
-  // Throttle: 'view' and 'quick_view' — max once per 5 min per product per session
-  if (actionType === 'view' || actionType === 'quick_view') {
+  // Throttle per session: 'view' max once per 45s per product to prevent loop-inflation
+  if (actionType === 'view') {
     const now = Date.now();
     const lastTime = _viewThrottle[pId] || 0;
-    if (now - lastTime < 5 * 60 * 1000) return; // 5 minutes throttle
+    if (now - lastTime < 45 * 1000) return;
     _viewThrottle[pId] = now;
   }
 
@@ -113,7 +178,7 @@ export const trackProductAction = (productId, product = {}, actionType = 'view')
     existing.views = (existing.views || 0) + 1;
   } else if (actionType === 'quick_view') {
     existing.quickViews = (existing.quickViews || 0) + 1;
-    existing.views = (existing.views || 0) + 1; // quick_view counts as a view too
+    existing.views = (existing.views || 0) + 1;
   } else if (actionType === 'cart_add') {
     existing.cartAdds = (existing.cartAdds || 0) + 1;
   } else if (actionType === 'order') {
@@ -127,7 +192,7 @@ export const trackProductAction = (productId, product = {}, actionType = 'view')
   if (product.price) existing.price = product.price;
   existing.lastActionAt = new Date().toISOString();
 
-  // Keep last 20 timestamps for recent timeline
+  // Keep last 20 timestamps for timeline
   existing.history = [
     { type: actionType, time: new Date().toISOString() },
     ...(existing.history || []).slice(0, 19)
@@ -136,26 +201,12 @@ export const trackProductAction = (productId, product = {}, actionType = 'view')
   current[pId] = existing;
   saveStoredProductAnalytics(current);
 
-  // Background Cloud Sync
-  try {
-    const supabase = getSupabase();
-    if (supabase) {
-      supabase.from('analytics').upsert({
-        product_id: pId,
-        views: existing.views,
-        quick_views: existing.quickViews,
-        cart_adds: existing.cartAdds,
-        orders: existing.orders,
-        name: existing.name,
-        category: existing.category,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'product_id' }).catch(() => {});
-    }
-  } catch {}
+  // Trigger atomic background Cloud Sync
+  syncIncrementToCloud(pId, product, actionType).catch(() => {});
 };
 
 /**
- * Get summary stats across all products (from localStorage)
+ * Get summary stats across all products
  */
 export const getProductAnalyticsList = (allProducts = []) => {
   const analyticsMap = getStoredProductAnalytics();

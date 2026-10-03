@@ -4,6 +4,7 @@ import { ShoppingBag, Eye, Star, MessageCircle, Check, Sparkles, Heart, Zap, Sen
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
 import { trackProductAction } from '../utils/productAnalytics';
+import { recordCloudOrder } from '../utils/cloudSync';
 
 export const ProductCard = ({ 
   product, 
@@ -32,13 +33,37 @@ export const ProductCard = ({
   };
 
   const handleCardClick = () => {
-    // view is tracked inside ProductQuickView as 'quick_view' (which also increments views)
+    trackProductAction(product.id, product, 'quick_view');
     onQuickView(product);
   };
 
   const handleDirectChannelOrder = (e) => {
     e.stopPropagation();
     trackProductAction(product.id, product, 'order');
+
+    // Record inquiry in cloud orders so admin sees the click in orders table
+    try {
+      const quickOrder = {
+        id: `ORD-WA-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        customer: {
+          name: 'Direct Channel Visitor',
+          phone: 'Inquiry on ' + channelLabel,
+          address: 'Product Card 1-Click Order',
+          paymentMethod: 'Prepaid / ' + channelLabel
+        },
+        items: [{
+          ...product,
+          selectedSize,
+          quantity: 1
+        }],
+        totalAmount: product.price,
+        grandTotal: product.price,
+        status: `${channelLabel} 1-Click Clicked`
+      };
+      recordCloudOrder(quickOrder);
+    } catch {}
+
     const url = generateSingleProductChannelUrl({ product, selectedSize, settings });
     window.open(url, '_blank');
   };
@@ -47,7 +72,10 @@ export const ProductCard = ({
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
+      viewport={{ once: true, margin: "-20px" }}
+      onViewportEnter={() => {
+        trackProductAction(product.id, product, 'view');
+      }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       whileHover={{ y: -6 }}
       onClick={handleCardClick}

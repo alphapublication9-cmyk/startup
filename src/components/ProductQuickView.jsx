@@ -28,6 +28,7 @@ import {
 import { generateSingleProductChannelUrl } from '../utils/whatsapp';
 import { normalizeImageUrl } from '../utils/imageUrl';
 import { trackProductAction } from '../utils/productAnalytics';
+import { recordCloudOrder } from '../utils/cloudSync';
 
 export const ProductQuickView = ({ 
   product, 
@@ -82,6 +83,7 @@ export const ProductQuickView = ({
   // Scroll into view when product opens
   useEffect(() => {
     if (product && product.id) {
+      trackProductAction(product.id, product, 'view');
       trackProductAction(product.id, product, 'quick_view');
       detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -102,6 +104,27 @@ export const ProductQuickView = ({
 
   const handleChannelOrder = () => {
     trackProductAction(product.id, product, 'order');
+    try {
+      const quickOrder = {
+        id: `ORD-WA-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        customer: {
+          name: 'Direct Channel Visitor',
+          phone: 'Inquiry on ' + channelLabel,
+          address: 'QuickView 1-Click Order',
+          paymentMethod: 'Prepaid / ' + channelLabel
+        },
+        items: [{
+          ...product,
+          selectedSize,
+          quantity
+        }],
+        totalAmount: product.price * quantity,
+        grandTotal: product.price * quantity,
+        status: `${channelLabel} Inquiry Sent`
+      };
+      recordCloudOrder(quickOrder);
+    } catch {}
     const url = generateSingleProductChannelUrl({ product, selectedSize, settings });
     window.open(url, '_blank');
   };

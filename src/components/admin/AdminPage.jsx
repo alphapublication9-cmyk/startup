@@ -247,17 +247,31 @@ export const AdminPage = ({
   useEffect(() => {
     setAnalyticsList(getProductAnalyticsList(products));
     setCustomers(getStoredCustomers());
-    // Auto-sync analytics from Supabase when analytics tab opens
+    
+    // Auto-sync analytics from Supabase when analytics tab opens + auto poll
     if (activeTab === 'analytics') {
       fetchAndMergeCloudAnalytics().then(() => {
         setAnalyticsList(getProductAnalyticsList(products));
       }).catch(() => {});
+
+      const interval = setInterval(() => {
+        fetchAndMergeCloudAnalytics().then(() => {
+          setAnalyticsList(getProductAnalyticsList(products));
+        }).catch(() => {});
+      }, 10000);
+
+      return () => clearInterval(interval);
     } else if (activeTab === 'customers') {
       fetchCloudCustomers().then((fresh) => {
         if (fresh && fresh.length > 0) setCustomers(fresh);
       }).catch(() => {});
     }
   }, [products, activeTab]);
+
+  const totalAnalyticsViews = analyticsList.reduce((a, c) => a + (c.views || 0), 0);
+  const totalAnalyticsQuickViews = analyticsList.reduce((a, c) => a + (c.quickViews || 0), 0);
+  const totalAnalyticsCartAdds = analyticsList.reduce((a, c) => a + (c.cartAdds || 0), 0);
+  const totalAnalyticsOrders = analyticsList.reduce((a, c) => a + (c.orders || 0), 0);
 
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -3411,6 +3425,32 @@ export const AdminPage = ({
                       <Trash2 size={13} />
                       <span>Reset</span>
                     </button>
+                  </div>
+                </div>
+
+                {/* 4 Total Live Activity Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  <div className="p-3.5 bg-brand-50/70 rounded-2xl border border-brand-200 shadow-2xs">
+                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-brand-900">Total Ad / Page Views</p>
+                    <p className="text-xl font-black text-brand-950 mt-0.5">👁️ {totalAnalyticsViews.toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-stone-500">Catalog Impressions</p>
+                  </div>
+                  <div className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 shadow-2xs">
+                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-blue-900">QuickView / Details</p>
+                    <p className="text-xl font-black text-blue-950 mt-0.5">🔍 {totalAnalyticsQuickViews.toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-stone-500">Opened Lightbox / Page</p>
+                  </div>
+                  <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200 shadow-2xs">
+                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-amber-900">Cart Additions</p>
+                    <p className="text-xl font-black text-amber-950 mt-0.5">🛒 {totalAnalyticsCartAdds.toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-stone-500">Added to Shopping Bag</p>
+                  </div>
+                  <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 shadow-2xs">
+                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-900">WhatsApp / Orders</p>
+                    <p className="text-xl font-black text-emerald-950 mt-0.5">📦 {totalAnalyticsOrders.toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">
+                      {totalAnalyticsViews > 0 ? `${((totalAnalyticsOrders / totalAnalyticsViews) * 100).toFixed(1)}% Conversion` : '0%'}
+                    </p>
                   </div>
                 </div>
 
